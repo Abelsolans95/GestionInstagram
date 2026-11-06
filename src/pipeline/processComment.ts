@@ -131,10 +131,3 @@ export function createCommentProcessor(deps: ProcessorDeps): CommentProcessor {
     return { ...out, label: out.label ?? label, error: out.error ?? extractError };
   };
 }
-
-/** Paso de respuesta provisional hasta la fase (e). */
-export const pendingReplyStep: ReplyStep = async () => ({
-  status: 'skipped',
-  decision: 'reply_pending',
-  reason: 'la generación de respuestas llega en la fase e',
-});

@@ -2,7 +2,8 @@ import './env.js';
 import { buildApp } from './app.js';
 import { loadConfig } from './config.js';
 import { createLogger } from './logger.js';
-import { createCommentProcessor, pendingReplyStep } from './pipeline/processComment.js';
+import { createCommentProcessor } from './pipeline/processComment.js';
+import { createReplyStep } from './pipeline/replyStep.js';
 import { createCommentQueue, pruneWebhookEvents } from './queue/commentQueue.js';
 import { createCoreServices } from './services.js';
 import { createReplyWorker } from './worker/replyWorker.js';
@@ -16,8 +17,16 @@ async function main(): Promise<void> {
   const { db } = services;
   const queue = createCommentQueue(db);
 
-  // Extracción → filtros → respuesta (la respuesta llega en la fase e).
-  const processComment = createCommentProcessor({ ...services.analysis, replyStep: pendingReplyStep });
+  // Extracción → filtros → respuesta con Claude (→ revisión o programada)
+  const replyStep = createReplyStep({
+    db,
+    llm: services.llm,
+    prompts: services.prompts,
+    lists: services.lists,
+    logger,
+    settings: config.replies,
+  });
+  const processComment = createCommentProcessor({ ...services.analysis, replyStep });
 
   const worker = createReplyWorker({ db, queue, processComment, logger });
 
@@ -29,6 +38,7 @@ async function main(): Promise<void> {
       enqueue: (events, ctx) => queue.enqueueWebhookEvents(events, ctx.receivedAt, ctx.rawBody),
     },
     reports: { db, reportToken: config.reportToken },
+    review: { db, reportToken: config.reportToken, settings: config.replies },
   });
 
   const prune = () => {

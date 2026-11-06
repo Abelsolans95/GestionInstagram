@@ -142,6 +142,58 @@ No uses `railway run`: ejecuta en tu ordenador con una base de datos local disti
 - Todo vive en SQLite: si el servicio se reinicia, lo que quedó a medias vuelve a la cola.
 - Los payloads crudos se guardan 30 días en `webhook_events` para depurar.
 
+## Respuestas automáticas
+
+Por cada comentario: **extracción** (siempre) → **filtros** → **respuesta con Claude** →
+revisión o publicación programada.
+
+- Modelo: `claude-haiku-5-5` (configurable con `CLAUDE_MODEL`), salida JSON forzada con
+  *structured outputs*: `{"reply": string|null, "reason": string}`. `null` = no responder.
+- System prompt en [`prompts/reply.md`](prompts/reply.md): edítalo sin tocar código.
+- Contexto que recibe: caption del vídeo, pregunta del vídeo y, si es una respuesta dentro de un
+  hilo, el texto del comentario padre.
+- Validación de la salida: si no empieza por `@usuario` se añade (y si empieza por otra mención,
+  p. ej. el `@usuario` de los ejemplos del prompt, se sustituye); si supera 200 caracteres, lleva
+  enlaces o el JSON no parsea, se descarta y se registra en el log.
+- En un hilo se publica sobre el **comentario padre**: la API solo admite respuestas a comentarios
+  principales ("replies to a reply will be added to the top-level comment").
+
+### Filtros (no se responde si…)
+
+| Caso | ¿Extracción? | ¿Respuesta? |
+|---|---|---|
+| Comentario de tu propia cuenta (`IG_USER_ID` o tu username) | no | no |
+| Spam (frases de [`config/spam.txt`](config/spam.txt), 5+ menciones, mismo texto repetido) | no | no |
+| Comentario en un vídeo que no es tuyo (menciones) | no | no |
+| Status `imported` | — | **nunca** |
+| Lleva enlaces | sí | no |
+| Insultos / temas de [`config/blocked.txt`](config/blocked.txt) | sí | no |
+| Ya hay 2 respuestas automáticas a ese usuario en ese hilo en 24 h | sí | no |
+| Comentario oculto (Meta no deja responderlo) | sí | no |
+| Más antiguo que `MAX_REPLY_AGE_HOURS` (si lo activas) | sí | no |
+| El modelo devuelve `reply: null` | sí | no |
+| **Solo emojis** | sí | **sí** |
+
+Las listas de `config/` se releen al cambiar el fichero: una palabra o frase por línea, sin
+distinguir mayúsculas ni tildes, por palabras completas; `*` al final = prefijo.
+
+### Modo revisión (`REVIEW_MODE=true`)
+
+Las respuestas se guardan como `pending_review` y **no se publica nada sin tu aprobación**.
+Al aprobar, la respuesta se programa con el delay aleatorio y sale respetando el tope por hora.
+
+Desde el móvil: `https://TU_DOMINIO/review?token=TU_REPORT_TOKEN` (editar, aprobar, rechazar,
+aprobar todas). Desde la terminal (`railway ssh` en producción):
+
+```bash
+pnpm review list
+pnpm review edit <comment-id> "jajaja lo vemos más adelante!!"
+pnpm review approve <comment-id> [<comment-id>...]   # o --all
+pnpm review reject <comment-id>
+pnpm review retry <comment-id>     # vuelve a encolar uno que falló
+pnpm review stats                  # cuántos hay en cada estado y respuestas en la última hora
+```
+
 ## Análisis de comentarios
 
 Por cada comentario (webhook o importación) se hace una **extracción** con Claude, separada de la
