@@ -14,6 +14,8 @@ FROM node:22-slim
 ENV NODE_ENV=production
 ENV DATABASE_PATH=/data/app.db
 WORKDIR /app
+# pnpm en la imagen final para poder lanzar los comandos (`railway ssh` → `pnpm review list`)
+RUN corepack enable && corepack prepare pnpm@10.28.0 --activate
 COPY --from=build /app/package.json ./
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist

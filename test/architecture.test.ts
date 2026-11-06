@@ -70,7 +70,13 @@ describe('arquitectura', () => {
     const importers = allTsFiles(SRC)
       .filter((f) => importsOf(f).some((i) => i.endsWith('meta/writeClient.ts')))
       .map((f) => relative(ROOT, f));
-    expect(importers.every((f) => f === 'src/worker/publisher.ts' || f === 'src/server.ts')).toBe(true);
+    expect(importers).toEqual(['src/worker/publisher.ts']);
+  });
+
+  it('el CLI (question, review, reextract, token) tampoco alcanza el cliente de escritura', () => {
+    for (const entry of ['src/cli/question.ts', 'src/cli/review.ts', 'src/cli/reextract.ts', 'src/cli/token.ts']) {
+      expect([...reachable(entry)].filter((f) => f === 'src/meta/writeClient.ts'), entry).toEqual([]);
+    }
   });
 
   it('el cliente de lectura no contiene peticiones de escritura', () => {

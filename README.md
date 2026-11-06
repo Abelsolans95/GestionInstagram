@@ -2,69 +2,51 @@
 
 Servicio que, con la API oficial de Meta (Instagram API con Instagram Login) y Claude:
 
-1. **Responde automáticamente** a los comentarios de tus vídeos, con tu estilo.
-2. **Analiza los comentarios**: qué responde cada @usuario a la pregunta de cada vídeo
-   (p. ej. qué oficio quiere) y qué nombre de personaje pide, en informes legibles desde el móvil.
+1. **Responde automáticamente** a los comentarios de tus vídeos (principales y respuestas en
+   hilos), con tu estilo, empezando siempre por `@usuario`.
+2. **Analiza los comentarios**: qué responde cada @usuario a la pregunta de cada vídeo (p. ej. qué
+   oficio quiere) y qué nombre de personaje pide, en informes legibles desde el móvil y en CSV.
 
-Stack: Node.js 22 + TypeScript (Fastify), pnpm, SQLite. Despliegue en Railway.
+Stack: Node.js 22 + TypeScript (Fastify), pnpm, SQLite (`better-sqlite3`), Claude Haiku
+(`claude-haiku-5-5`), Graph API de Instagram `v27.0`. Despliegue en Railway con Docker.
 
-## Estado
+## Cómo funciona
 
-| Fase | Contenido | Estado |
-|---|---|---|
-| a | Webhook: verificación de Meta + firma `X-Hub-Signature-256` + simulador | ✅ |
-| b | Cola persistente + idempotencia + worker | ✅ |
-| c | Extracción + tablas + pregunta del vídeo + importación | ✅ |
-| d | Informes `/report/:mediaId` y `/participants` | ✅ |
-| e | Filtros + respuestas con Claude + modo revisión | pendiente |
-| f | Publicación + delay + tope por hora + refresco de token | pendiente |
-
-## Desarrollo local
-
-```bash
-pnpm install
-cp .env.example .env      # rellena al menos IG_APP_SECRET y WEBHOOK_VERIFY_TOKEN
-pnpm dev                  # servidor en http://localhost:3000 (recarga al guardar)
-pnpm test                 # tests unitarios
+```
+Meta ──POST /webhook/instagram──▶ firma OK? ──▶ INSERT OR IGNORE en `comments` (queued) ──▶ 200
+                                                       │
+                       worker de respuestas ◀──────────┘ (uno a uno, persistente)
+                         1. ¿propio / vídeo ajeno / spam? → fin (sin análisis)
+                         2. extracción con Claude → answers / participants   (siempre)
+                         3. filtros de respuesta (enlaces, bloqueados, 2 por hilo/24 h…)
+                         4. respuesta con Claude → validación
+                         5. REVIEW_MODE → pending_review   |   si no → scheduled (+ delay aleatorio)
+                       publicador (único que usa el cliente de escritura)
+                         scheduled + publish_at vencido + tope por hora → POST /{comment-id}/replies
 ```
 
-### Simular un webhook sin Meta
+- **Idempotencia**: `comments.comment_id` es único; los reenvíos de Meta no se procesan dos veces.
+- **Nunca se procesa en la petición del webhook**: solo se valida, se encola y se responde 200.
+- **Lectura y escritura separadas**: `src/meta/readClient.ts` (solo GET) y
+  `src/meta/writeClient.ts` (solo `POST /replies`). Únicamente `src/worker/publisher.ts`
+  importa el de escritura; un test de arquitectura lo comprueba.
 
-`pnpm simulate:webhook` construye un payload `comments` como los de Meta, lo firma con tu
-`IG_APP_SECRET` y lo envía al servidor local:
+## Puesta en marcha (orden recomendado)
 
-```bash
-pnpm simulate:webhook --verify                                    # handshake GET
-pnpm simulate:webhook --text "Yo quiero ser el que haga las herramientas" --username cesar_h_marquez
-pnpm simulate:webhook --text "jajaja" --parent 18000000000000001  # respuesta dentro de un hilo
-pnpm simulate:webhook --text "hola" --times 3                     # el mismo evento 3 veces (duplicados)
-pnpm simulate:webhook --text "hola" --bad-signature               # debe dar 401
-pnpm simulate:webhook --text "hola" --shape flat                  # forma alternativa del payload
-pnpm simulate:webhook --text "hola" --url https://xxxx.ngrok-free.app/webhook/instagram
-```
+1. [Configura la app de Meta](#1-configurar-meta-instagram-api-con-instagram-login) y consigue el token.
+2. [Despliega en Railway](#2-desplegar-en-railway) con `REVIEW_MODE=true`.
+3. Configura el webhook en Meta apuntando a tu dominio de Railway y suscribe `comments`.
+4. Fija las preguntas de los vídeos: `pnpm question list --refresh` y `pnpm question set …`.
+5. Importa lo que ya existe: `pnpm import:comments --dry-run` y luego `pnpm import:comments`.
+6. Durante los 3 primeros días revisa y aprueba desde el móvil: `https://TU_DOMINIO/review?token=…`.
+7. Cuando te fíes, pon `REVIEW_MODE=false` en Railway: las respuestas se publicarán solas.
 
-## Endpoints
-
-| Método | Ruta | Qué hace |
-|---|---|---|
-| GET | `/webhook/instagram` | Handshake de Meta: si `hub.mode=subscribe` y `hub.verify_token` coincide con `WEBHOOK_VERIFY_TOKEN`, devuelve `hub.challenge`; si no, 403 |
-| POST | `/webhook/instagram` | Valida la firma `X-Hub-Signature-256` (HMAC-SHA256 del cuerpo crudo con `IG_APP_SECRET`), encola y responde 200 al instante. Firma inválida → 401 |
-| GET | `/report` | Índice de vídeos con su pregunta |
-| GET | `/report/:mediaId` | Pregunta + respuestas agrupadas por etiqueta (`herrero (3): @a, @b, @c`) y, al final, los que no responden. `?format=csv` |
-| GET | `/participants` | Ficha por seguidor: @usuario, personaje y respuesta en cada vídeo. `?format=csv` |
-| GET | `/health` | Comprobación de vida para Railway |
-
-Los informes y la página de revisión piden `REPORT_TOKEN`: añade `?token=TU_REPORT_TOKEN` a la URL
-(guárdala en favoritos del móvil) o envía `Authorization: Bearer TU_REPORT_TOKEN`. Ejemplo:
-`https://TU_DOMINIO/report?token=...`. En los informes, `@usuario*` = respondió varias veces y
-cuenta la última.
-
-## Configurar Meta (Instagram API con Instagram Login)
+## 1. Configurar Meta (Instagram API con Instagram Login)
 
 Lo que necesitas:
 
-- **Cuenta de Instagram profesional y pública.** Una cuenta *creator* vale: la plataforma
-  da acceso a cuentas profesionales, tanto *business* como *creator*. Las cuentas privadas no
+- **Cuenta de Instagram profesional y pública.** Una cuenta *creator* vale: la plataforma da
+  acceso a cuentas profesionales, tanto *business* como *creator*. Las cuentas privadas no
   reciben notificaciones de comentarios.
 - **Una cuenta de Facebook** para registrarte como desarrollador de Meta: con la sesión de
   Facebook iniciada, entra en <https://developers.facebook.com/async/registration> y confirma
@@ -78,89 +60,98 @@ Pasos (según la guía *Create a Meta app for the Instagram API*):
    El **Instagram App ID** y el **Instagram app secret** están en *Instagram › API setup with
    Instagram login › 3. Set up Instagram business login › Business login settings*
    → `IG_APP_ID` e `IG_APP_SECRET`.
-3. **Generar el token**: en *API setup with Instagram login* → *Generate access tokens* →
-   *Add account* e inicia sesión con @humanidaddesdecero. Concede los permisos
-   `instagram_business_basic` e `instagram_business_manage_comments`. Copia el token → `IG_ACCESS_TOKEN`.
-4. **Tu IG_USER_ID**:
+3. **Permisos**: `instagram_business_basic` e `instagram_business_manage_comments`. Para una app
+   que solo usa tu propia cuenta, la guía de *App Review* indica **Standard Access, sin revisión**.
+4. **Generar el token**: en *API setup with Instagram login* → *Generate access tokens* →
+   *Add account* e inicia sesión con @humanidaddesdecero (la cuenta debe ser pública). Concede
+   los dos permisos y copia el token → `IG_ACCESS_TOKEN`.
+   El servicio necesita un token de **larga duración** (60 días). Si el que te da el panel fuese
+   de corta duración, cámbialo así (guía *Business Login for Instagram*):
+   ```bash
+   curl "https://graph.instagram.com/access_token?grant_type=ig_exchange_token&client_secret=TU_IG_APP_SECRET&access_token=TOKEN_CORTO"
+   ```
+5. **Tu IG_USER_ID**:
    ```bash
    curl "https://graph.instagram.com/v27.0/me?fields=user_id,username&access_token=TU_TOKEN"
    ```
    El campo `user_id` es `IG_USER_ID` (es el mismo `id` que llega en `entry[].id` de los webhooks).
-5. **Configurar el webhook** (sección *Configure webhooks*): *Callback URL* =
+6. **Configurar el webhook** (sección *Configure webhooks*): *Callback URL* =
    `https://TU_DOMINIO/webhook/instagram`, *Verify token* = el valor de `WEBHOOK_VERIFY_TOKEN`
-   → *Verify and save*. Meta hace el GET de verificación: el servidor tiene que estar ya
-   desplegado (Railway) o expuesto con ngrok. Después, en la lista de campos, deja
-   **suscrito `comments`** (puedes desuscribir los de mensajería).
-6. **Activar las notificaciones para tu cuenta** (la guía lo pide para Instagram Login):
+   → *Verify and save*. Meta hace el GET de verificación, así que el servidor tiene que estar ya
+   desplegado (Railway) o expuesto con ngrok. Después, en la lista de campos, deja **suscrito
+   `comments`** (puedes desuscribir los de mensajería).
+7. **Activar las notificaciones para tu cuenta** (la guía lo pide para Instagram Login):
    ```bash
    curl -X POST "https://graph.instagram.com/v27.0/TU_IG_USER_ID/subscribed_apps?subscribed_fields=comments&access_token=TU_TOKEN"
    # → {"success": true}
    ```
-7. **Probar**: en el panel de webhooks, botón *Test* del campo `comments` → debe llegar al
-   servidor (lo verás en los logs).
+8. **Probar**: botón *Test* del campo `comments` en el panel de webhooks (lo verás en los logs) y
+   después un comentario real desde otra cuenta.
 
-> ⚠️ **Puntos dudosos de la documentación de Meta** (los anoto en vez de suponer):
-> - *Live / Advanced Access*: la guía de webhooks dice que la app debe estar **Live** y que
->   `comments` requiere **Advanced Access**; la guía de *App Review* dice que para una app que solo
->   usa tu propia cuenta basta **Standard Access** y no hace falta revisión. Si el botón *Test*
->   funciona pero los comentarios reales no llegan, probablemente haya que pasar la app a Live
->   (Meta pide URL de política de privacidad y puede pedir verificación del negocio).
-> - *Qué secreto firma los webhooks*: la doc solo dice "App Secret". Con Instagram Login hay un
->   *Instagram app secret* distinto del *App secret* de *App settings › Basic*. Usamos el de
->   Instagram; si los webhooks reales dan 401 por firma inválida, prueba con el otro.
-> - *Forma del payload*: la doc muestra dos formas distintas; el servidor acepta ambas.
+> ⚠️ **Si el *Test* funciona pero los comentarios reales no llegan**: la guía de webhooks dice que
+> la app debe estar **Live** para recibir notificaciones (y pasar a Live pide URL de política de
+> privacidad y puede pedir verificación del negocio). Mientras tanto puedes activar el
+> [plan B](#plan-b-leer-los-comentarios-sin-webhook): `POLL_INTERVAL_SECONDS=60`.
 
-### Probar con ngrok
+### Probar en local con ngrok
 
 ```bash
-pnpm dev
-ngrok http 3000
-# Usa https://<subdominio>.ngrok-free.app/webhook/instagram como Callback URL en Meta
+pnpm install
+cp .env.example .env       # rellena las variables
+pnpm dev                   # http://localhost:3000, recarga al guardar
+ngrok http 3000            # usa https://<subdominio>.ngrok-free.app/webhook/instagram en Meta
 pnpm simulate:webhook --verify --url https://<subdominio>.ngrok-free.app/webhook/instagram
 ```
 
-## Despliegue en Railway
+`pnpm simulate:webhook` construye un payload `comments` como los de Meta, lo firma con tu
+`IG_APP_SECRET` y lo envía:
 
-El repo incluye un `Dockerfile`; Railway lo detecta y lo usa. Configura las variables de
-`.env.example` en *Variables* del servicio y genera un dominio público (*Settings › Networking*):
-esa es la URL HTTPS para el webhook. Railway inyecta `PORT`.
+```bash
+pnpm simulate:webhook --text "Yo quiero ser el que haga las herramientas" --username cesar_h_marquez
+pnpm simulate:webhook --text "jajaja" --parent 18000000000000001  # respuesta dentro de un hilo
+pnpm simulate:webhook --text "hola" --times 3                     # el mismo evento 3 veces (duplicados)
+pnpm simulate:webhook --text "hola" --bad-signature               # debe dar 401
+pnpm simulate:webhook --text "hola" --shape flat                  # la otra forma del payload
+pnpm simulate:webhook --text "hola" --print                       # solo muestra el JSON
+```
 
-**SQLite necesita un volumen persistente** (si no, la base de datos se borra en cada despliegue):
-en el servicio, *+ New › Volume*, móntalo en `/data`. La imagen ya usa `DATABASE_PATH=/data/app.db`.
-Mantén **una sola réplica** (SQLite es un fichero local).
+Con `REVIEW_MODE=true` nada se publica, aunque el servidor sí lee de Meta (caption, comentario
+padre…), así que en local necesitas un token válido para que el comentario simulado se procese.
 
-Los comandos (`pnpm question`, `pnpm review`, `pnpm import`) tienen que ejecutarse **dentro del
-contenedor**, que es donde está la base de datos: `railway ssh` y, dentro, `pnpm <comando>`.
-No uses `railway run`: ejecuta en tu ordenador con una base de datos local distinta.
+## 2. Desplegar en Railway
 
-## Cómo funciona la cola
+1. *New Project › Deploy from GitHub repo* con este repo. Railway detecta el `Dockerfile`.
+2. **Volumen** (SQLite, si no la base de datos se borra en cada despliegue): en el servicio,
+   *+ New › Volume*, montado en **`/data`**. La imagen ya usa `DATABASE_PATH=/data/app.db`.
+   Mantén **una sola réplica**.
+3. **Variables**: las de [`.env.example`](.env.example) en *Variables* del servicio, con
+   `REVIEW_MODE=true`. Railway inyecta `PORT`.
+4. **Dominio público**: *Settings › Networking › Generate Domain*. Esa es la URL HTTPS del
+   webhook (`https://xxx.up.railway.app/webhook/instagram`).
+5. *Healthcheck*: `GET /health`.
 
-- El webhook valida la firma, hace `INSERT OR IGNORE` en la tabla `comments` (clave `comment_id`)
-  con status `queued` y responde 200. Si Meta reenvía el mismo comentario, no se inserta otra vez.
-- El worker reclama los `queued` de uno en uno (`processing`) y deja el estado final:
-  `skipped`, `pending_review`, `scheduled` → `replied`, o `failed`. Los `imported` no entran nunca.
-- Todo vive en SQLite: si el servicio se reinicia, lo que quedó a medias vuelve a la cola.
-- Los payloads crudos se guardan 30 días en `webhook_events` para depurar.
+**Comandos en producción**: la base de datos está dentro del contenedor, así que los comandos se
+ejecutan ahí, con la CLI de Railway: `railway ssh` y dentro `pnpm review list`, etc. (o
+`node dist/src/cli/review.js list`). No uses `railway run`: ejecuta en tu ordenador con otra base
+de datos.
 
 ## Respuestas automáticas
 
-Por cada comentario: **extracción** (siempre) → **filtros** → **respuesta con Claude** →
-revisión o publicación programada.
-
-- Modelo: `claude-haiku-5-5` (configurable con `CLAUDE_MODEL`), salida JSON forzada con
-  *structured outputs*: `{"reply": string|null, "reason": string}`. `null` = no responder.
+- Modelo `claude-haiku-5-5` (`CLAUDE_MODEL`), con la salida JSON forzada por *structured outputs*:
+  `{"reply": string|null, "reason": string}`. `null` = no responder.
 - System prompt en [`prompts/reply.md`](prompts/reply.md): edítalo sin tocar código.
-- Contexto que recibe: caption del vídeo, pregunta del vídeo y, si es una respuesta dentro de un
-  hilo, el texto del comentario padre.
-- Validación de la salida: si no empieza por `@usuario` se añade (y si empieza por otra mención,
-  p. ej. el `@usuario` de los ejemplos del prompt, se sustituye); si supera 200 caracteres, lleva
-  enlaces o el JSON no parsea, se descarta y se registra en el log.
-- En un hilo se publica sobre el **comentario padre**: la API solo admite respuestas a comentarios
-  principales ("replies to a reply will be added to the top-level comment").
+- Contexto: caption del vídeo (cacheado por vídeo), pregunta del vídeo y, si es una respuesta en
+  un hilo, el texto del comentario padre.
+- Validación: si no empieza por `@usuario` se añade (si empieza por otra mención, p. ej. el
+  `@usuario` de los ejemplos del prompt, se sustituye); si supera **200 caracteres**, lleva enlaces
+  o el JSON no parsea, se descarta y queda en el log.
+- **Hilos**: la API solo admite respuestas a comentarios principales (*"replies to a reply will be
+  added to the top-level comment"*), así que para una respuesta dentro de un hilo se publica sobre
+  el **comentario padre** (`parent_id`), mencionando al autor.
 
-### Filtros (no se responde si…)
+### Filtros
 
-| Caso | ¿Extracción? | ¿Respuesta? |
+| Caso | ¿Análisis? | ¿Respuesta? |
 |---|---|---|
 | Comentario de tu propia cuenta (`IG_USER_ID` o tu username) | no | no |
 | Spam (frases de [`config/spam.txt`](config/spam.txt), 5+ menciones, mismo texto repetido) | no | no |
@@ -168,54 +159,71 @@ revisión o publicación programada.
 | Status `imported` | — | **nunca** |
 | Lleva enlaces | sí | no |
 | Insultos / temas de [`config/blocked.txt`](config/blocked.txt) | sí | no |
-| Ya hay 2 respuestas automáticas a ese usuario en ese hilo en 24 h | sí | no |
-| Comentario oculto (Meta no deja responderlo) | sí | no |
-| Más antiguo que `MAX_REPLY_AGE_HOURS` (si lo activas) | sí | no |
-| El modelo devuelve `reply: null` | sí | no |
+| Ya hay 2 respuestas automáticas a ese usuario en ese hilo en las últimas 24 h | sí | no |
+| Comentario oculto (Meta no permite responderlo) | sí | no |
+| Más antiguo que `MAX_REPLY_AGE_HOURS` (si lo activas; por defecto se responde todo) | sí | no |
+| El modelo devuelve `reply: null` (insultos, polémica…) | sí | no |
 | **Solo emojis** | sí | **sí** |
 
 Las listas de `config/` se releen al cambiar el fichero: una palabra o frase por línea, sin
 distinguir mayúsculas ni tildes, por palabras completas; `*` al final = prefijo.
 
+### Delay, tope por hora y reintentos
+
+- Cada respuesta se programa a `ahora + aleatorio(REPLY_DELAY_MIN, REPLY_DELAY_MAX)` segundos
+  (60–300 por defecto). Los delays corren en paralelo: 10 comentarios a la vez salen en 1–5 min.
+- **`MAX_REPLIES_PER_HOUR`** (60) es un tope global en ventana móvil de 60 min. Solo se nota en
+  picos: si llegan más de 60 en una hora, el resto espera a que haya hueco (no se pierde).
+- El publicador saca como mucho una respuesta cada ~10 s para no soltar ráfagas.
+- Llamadas a Meta y a Claude: 3 intentos con backoff; si fallan, el comentario queda `failed` y
+  se sigue con el siguiente (`pnpm review retry <id>` para reintentarlo).
+- Si una publicación falla de forma ambigua (sin respuesta de Meta o 5xx), antes de reintentar se
+  comprueba si la respuesta ya está publicada en el hilo, para no duplicarla.
+
 ### Modo revisión (`REVIEW_MODE=true`)
 
-Las respuestas se guardan como `pending_review` y **no se publica nada sin tu aprobación**.
-Al aprobar, la respuesta se programa con el delay aleatorio y sale respetando el tope por hora.
+Las respuestas se guardan como `pending_review` y **no se publica nada sin tu aprobación**. Al
+aprobar, se programa con el delay aleatorio y sale respetando el tope por hora.
 
-Desde el móvil: `https://TU_DOMINIO/review?token=TU_REPORT_TOKEN` (editar, aprobar, rechazar,
-aprobar todas). Desde la terminal (`railway ssh` en producción):
+- Desde el móvil: `https://TU_DOMINIO/review?token=TU_REPORT_TOKEN` (editar, aprobar, rechazar,
+  aprobar todas).
+- Desde la terminal:
+  ```bash
+  pnpm review list
+  pnpm review edit <comment-id> "jajaja lo vemos más adelante!!"
+  pnpm review approve <comment-id> [<comment-id>...]   # o --all
+  pnpm review reject <comment-id>
+  pnpm review retry <comment-id>                      # vuelve a encolar uno que falló
+  pnpm review stats
+  ```
 
-```bash
-pnpm review list
-pnpm review edit <comment-id> "jajaja lo vemos más adelante!!"
-pnpm review approve <comment-id> [<comment-id>...]   # o --all
-pnpm review reject <comment-id>
-pnpm review retry <comment-id>     # vuelve a encolar uno que falló
-pnpm review stats                  # cuántos hay en cada estado y respuestas en la última hora
-```
+### Token de larga duración
+
+El token dura 60 días. El servicio lo refresca solo (`GET /refresh_access_token?grant_type=ig_refresh_token`)
+cada 7 días (lo comprueba cada 6 h; Meta exige que tenga al menos 24 h). Como Railway no deja que la
+app reescriba sus variables, el token vigente se guarda en SQLite; si cambias `IG_ACCESS_TOKEN` en
+Railway, se adopta el nuevo. `pnpm token status` / `pnpm token refresh`.
 
 ## Análisis de comentarios
 
 Por cada comentario (webhook o importación) se hace una **extracción** con Claude, separada de la
-respuesta, con el prompt [`prompts/extract.md`](prompts/extract.md). Devuelve
-`{"answers_question", "answer", "answer_label", "character_name"}`:
+respuesta, con [`prompts/extract.md`](prompts/extract.md):
+`{"answers_question", "answer", "answer_label", "character_name"}`.
 
-- `answer_label` es una etiqueta corta normalizada ("el que haga las herramientas" → `herrero`).
-  Se le pasan al modelo las etiquetas ya usadas en ese vídeo para que las reutilice.
-- `character_name` solo si propone explícitamente un nombre para su personaje.
+- `answer_label`: etiqueta corta normalizada ("el que haga las herramientas" → `herrero`). Se le
+  pasan al modelo las etiquetas ya usadas en ese vídeo para que reutilice las existentes.
+- `character_name`: solo si propone explícitamente un nombre para su personaje.
 - Si alguien responde varias veces a la misma pregunta, **vale la última** y queda marcado
-  (`answers.is_latest`, `answers.n_answers`).
+  (`answers.is_latest`, `answers.n_answers`; `@usuario*` en los informes).
 
 Tablas: `answers` (media_id, question, username, answer, answer_label, comment_id, raw_text,
 created_at) y `participants` (username único, ig_user_id, character_name, first_seen, last_seen,
-n_comments). El análisis se hace también para los comentarios que no se responden (enlaces,
-términos bloqueados...), salvo los propios y el spam.
+n_comments).
 
 ### La pregunta de cada vídeo
 
-Cada vídeo hace una pregunta distinta. El sistema intenta sacarla del caption con Claude
-([`prompts/question.md`](prompts/question.md)) y la guarda por vídeo. Como a menudo la pregunta
-solo se dice en el vídeo, puedes fijarla o corregirla a mano:
+El sistema intenta sacarla del caption ([`prompts/question.md`](prompts/question.md)) y la guarda
+por vídeo. Como a menudo solo se dice en el vídeo, puedes fijarla a mano (nunca se sobrescribe):
 
 ```bash
 pnpm question list --refresh                     # tus vídeos y su pregunta
@@ -226,39 +234,126 @@ pnpm question detect <media-id|url> [--force]    # volver a intentarlo desde el 
 pnpm reextract <media-id|url>                    # re-analizar los comentarios de ese vídeo
 ```
 
-Una pregunta fijada a mano nunca se sobrescribe.
-
 ### Importar los comentarios que ya existen
 
 `pnpm import:comments` recorre los comentarios de tus vídeos (`GET /{media-id}/comments` con
 paginación, incluidas las respuestas en hilos) y los pasa por la extracción **sin responderlos**.
+(Se llama `import:comments` porque `pnpm import` es un comando interno de pnpm.)
 
 > ⚠️ **Lánzala siempre con `REVIEW_MODE=true`** como red de seguridad. El comando se niega a
-> ejecutarse si no (salvo `--dry-run`).
+> ejecutarse si no (salvo con `--dry-run`).
 
 ```bash
 pnpm import:comments --dry-run                         # muestra lo que extraería, no guarda nada
 pnpm import:comments --dry-run --media <media-id|url>  # solo un vídeo
 pnpm import:comments                                   # importa todo
-pnpm import:comments --max-media 5 2> import.log       # los 5 vídeos más recientes; logs JSON aparte
+pnpm import:comments --max-media 5 2> import.log       # los 5 más recientes; logs JSON aparte
 ```
 
-Orden recomendado: `pnpm question list --refresh` → fija las preguntas que falten con
-`pnpm question set` → `pnpm import:comments`.
-
-Garantías (con tests en `test/import.test.ts` y `test/architecture.test.ts`):
+Garantías (con tests):
 
 - No usa la cola ni el worker de respuestas: llama directamente al módulo de extracción.
 - No importa ni instancia el cliente de escritura de Meta; solo el de lectura (GET).
 - Marca cada comentario importado con status `imported`; el worker nunca responde a esos,
   aunque Meta reenvíe después un webhook del mismo comentario.
 - `--dry-run` no escribe nada en la base de datos.
-- Test: importación con la API de Meta mockeada → ninguna petición POST.
+- `test/import.test.ts`: importación con la API de Meta mockeada → ninguna petición POST.
 
-En local, los comandos usan el código compilado: ejecuta `pnpm build` antes (o
-`pnpm tsx src/cli/question.ts ...`). Para probar los prompts con Claude real:
-`pnpm test:live` (necesita `ANTHROPIC_API_KEY`).
+## Informes
+
+Protegidos con `REPORT_TOKEN`: añade `?token=TU_REPORT_TOKEN` (guarda el enlace en el móvil) o
+envía `Authorization: Bearer TU_REPORT_TOKEN`.
+
+| Ruta | Qué muestra |
+|---|---|
+| `GET /report` | Índice de vídeos con su pregunta |
+| `GET /report/:mediaId` | La pregunta y las respuestas agrupadas por etiqueta, ordenadas por número de personas (`herrero (3): @a, @b, @c`); al final, los comentarios que no responden. `?format=csv` |
+| `GET /participants` | Ficha por seguidor: @usuario, nombre de personaje y su respuesta en cada vídeo. `?format=csv` |
+| `GET /review` | Respuestas pendientes de aprobar |
+| `GET /status` | Estado en JSON: comentarios por estado, respuestas en la última hora, token |
+
+## Plan B: leer los comentarios sin webhook
+
+Si los webhooks reales no llegan, `POLL_INTERVAL_SECONDS=60` hace que el servicio lea cada minuto
+los comentarios de tus `POLL_MEDIA_COUNT` (5) vídeos más recientes con el cliente de lectura y los
+meta en la misma cola idempotente. Solo coge comentarios posteriores a su activación (lo anterior
+se analiza con la importación, que no responde). Con webhooks funcionando, déjalo a `0`.
+
+## Observabilidad
+
+Logs JSON (pino). Por cada comentario, una línea `"event":"comment_processed"` con `comment_id`,
+`username`, `origin` (`webhook` / `import` / `poll`), `decision`, `reason`, `label`, `latency_ms`
+y `error`. Los tokens nunca aparecen en los logs. Los payloads crudos de los webhooks se guardan
+30 días en la tabla `webhook_events`.
 
 ## Variables de entorno
 
-Ver [`.env.example`](.env.example). Nunca subas secretos al repo: `.env` está en `.gitignore`.
+| Variable | Por defecto | |
+|---|---|---|
+| `IG_APP_ID` | — | Instagram App ID (informativo) |
+| `IG_APP_SECRET` | — | Instagram app secret: valida la firma de los webhooks |
+| `IG_ACCESS_TOKEN` | — | Token de larga duración inicial |
+| `IG_USER_ID` | — | `user_id` de `GET /me` |
+| `WEBHOOK_VERIFY_TOKEN` | — | El mismo texto que pongas en Meta |
+| `ANTHROPIC_API_KEY` | — | |
+| `REPLY_DELAY_MIN` / `REPLY_DELAY_MAX` | 60 / 300 | Segundos |
+| `MAX_REPLIES_PER_HOUR` | 60 | |
+| `REVIEW_MODE` | true | |
+| `REPORT_TOKEN` | — | 16+ caracteres aleatorios |
+| `MAX_REPLY_AGE_HOURS` | 0 | 0 = responder todos |
+| `POLL_INTERVAL_SECONDS` / `POLL_MEDIA_COUNT` | 0 / 5 | Plan B; 0 = apagado |
+| `CLAUDE_MODEL` | `claude-haiku-5-5` | |
+| `META_API_VERSION` | `v27.0` | |
+| `DATABASE_PATH` | `./data/app.db` (`/data/app.db` en Docker) | |
+| `PORT`, `LOG_LEVEL` | 3000, info | |
+
+Nunca subas secretos al repo: `.env` está en `.gitignore`.
+
+## Tests
+
+```bash
+pnpm test        # unitarios: firma, filtros, idempotencia, validación del LLM, importación,
+                 # extracción con los comentarios reales, informes, publicador, token…
+pnpm test:live   # con Claude de verdad (necesita ANTHROPIC_API_KEY): los 4 comentarios reales
+pnpm typecheck
+```
+
+En local, los comandos (`pnpm question`, `pnpm review`, …) usan el código compilado: ejecuta
+`pnpm build` antes, o `pnpm tsx src/cli/question.ts …`.
+
+## Dudas sobre la API de Meta (anotadas en vez de suponer)
+
+- **Live / Advanced Access**: la guía de webhooks dice que la app debe estar Live y que `comments`
+  requiere Advanced Access; la guía de App Review dice que para tu propia cuenta basta Standard
+  Access. Ver el plan B.
+- **Secreto de la firma**: la doc solo dice "App Secret". Con Instagram Login hay un *Instagram app
+  secret* distinto del *App secret* de *App settings › Basic*. Usamos el de Instagram; si los
+  webhooks reales dan 401 por firma inválida, prueba con el otro.
+- **Forma del payload**: la doc muestra dos formas distintas (con y sin `changes`, `id` o
+  `comment_id`, con o sin `parent_id`). Se aceptan todas; si falta `parent_id`, el worker lee el
+  comentario para saber si es una respuesta.
+- **`caption`**: la referencia de IG Media dice que es solo para Facebook Login, pero el changelog
+  indica que también se devuelve en `graph.instagram.com`. Se pide y, si Meta lo rechaza, se sigue
+  sin él (la pregunta habrá que fijarla a mano).
+- **Comentarios propios**: se comparan por `IG_USER_ID` y además por username.
+
+## Estructura
+
+```
+src/
+  server.ts            arranque: HTTP + worker + publicador + refresco de token + plan B
+  app.ts               rutas (webhook, informes, revisión, estado)
+  webhook/             firma, parser del payload, rutas
+  queue/               cola persistente (tabla comments)
+  worker/              replyWorker (cola), publisher (único que publica), poller (plan B)
+  meta/                http (reintentos), readClient (GET), writeClient (POST), token
+  llm/                 cliente de Claude, prompts, reply, extract, question
+  pipeline/            procesado de un comentario, filtros, extracción, contexto
+  importer/            importación de comentarios existentes (solo lectura)
+  reports/, review/    informes y modo revisión
+  cli/                 question, review, import, reextract, token
+prompts/               reply.md, extract.md, question.md (editables)
+config/                blocked.txt, spam.txt (editables)
+scripts/               simulate-webhook.ts
+test/                  tests (vitest)
+```

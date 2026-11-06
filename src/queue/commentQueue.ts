@@ -17,6 +17,8 @@ export interface EnqueueResult {
 
 export interface CommentQueue {
   enqueueWebhookEvents(events: CommentEvent[], receivedAt: Date, rawBody?: Buffer): EnqueueResult;
+  /** Comentarios descubiertos leyendo la API (plan B, sin webhook). */
+  enqueuePolledEvents(events: CommentEvent[], receivedAt: Date): EnqueueResult;
   claimNext(): CommentRow | undefined;
   recoverStale(): number;
   /** Se llama cuando entra trabajo nuevo, para despertar al worker sin esperar al polling. */
@@ -31,7 +33,7 @@ export function createCommentQueue(db: DB, now: () => number = Date.now): Commen
   );
 
   const enqueueTx = db.transaction(
-    (events: CommentEvent[], receivedAt: number, rawBody?: Buffer): EnqueueResult => {
+    (events: CommentEvent[], receivedAt: number, source: 'webhook' | 'poll', rawBody?: Buffer): EnqueueResult => {
       const result: EnqueueResult = { inserted: [], duplicates: [] };
       if (rawBody) {
         insertEvent.run(
@@ -48,12 +50,14 @@ export function createCommentQueue(db: DB, now: () => number = Date.now): Commen
             mediaId: e.mediaId,
             parentId: e.parentId,
             // Si el payload trae parent_id es una respuesta confirmada; si no, el worker lo comprobará.
-            parentChecked: e.parentId !== null,
+            // Los del polling vienen del listado de la API, donde el hilo ya se conoce.
+            parentChecked: source === 'poll' || e.parentId !== null,
             igUserId: e.fromId,
             username: e.fromUsername,
             text: e.text,
-            commentedAt: receivedAt,
-            source: 'webhook',
+            // entry.time (cuándo Meta envió el aviso) o la fecha del comentario si viene de la API
+            commentedAt: e.sentAt ? e.sentAt * 1000 : receivedAt,
+            source,
             status: 'queued',
           },
           receivedAt,
@@ -74,7 +78,12 @@ export function createCommentQueue(db: DB, now: () => number = Date.now): Commen
 
   return {
     enqueueWebhookEvents(events, receivedAt, rawBody) {
-      const result = enqueueTx(events, receivedAt.getTime(), rawBody);
+      const result = enqueueTx(events, receivedAt.getTime(), 'webhook', rawBody);
+      if (result.inserted.length > 0) for (const l of listeners) l();
+      return result;
+    },
+    enqueuePolledEvents(events, receivedAt) {
+      const result = enqueueTx(events, receivedAt.getTime(), 'poll');
       if (result.inserted.length > 0) for (const l of listeners) l();
       return result;
     },

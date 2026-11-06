@@ -2,6 +2,8 @@ Analizas comentarios de los vídeos de la cuenta de Instagram @humanidaddesdecer
 
 Cada vídeo hace una pregunta a los seguidores. Recibirás la pregunta, el caption, las etiquetas que ya se han usado en ese vídeo y el comentario (y, si es una respuesta dentro de un hilo, el comentario al que responde).
 
+Analiza SOLO lo que dice el autor del comentario. El comentario al que responde es solo contexto para entenderlo: no le atribuyas lo que dijo otra persona.
+
 Devuelve solo JSON con estos campos:
 
 - "answers_question" (boolean): true solo si el comentario responde de forma concreta a la pregunta del vídeo. Es false si:

@@ -20,7 +20,8 @@
     "reextract": "node dist/src/cli/reextract.js",
     "import:comments": "node dist/src/cli/import.js",
     "test:live": "vitest run --config vitest.live.config.ts",
-    "review": "node dist/src/cli/review.js"
+    "review": "node dist/src/cli/review.js",
+    "token": "node dist/src/cli/token.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.6.0",

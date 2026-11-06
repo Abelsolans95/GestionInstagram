@@ -2,6 +2,7 @@ import Fastify, { type FastifyBaseLogger, type FastifyInstance } from 'fastify';
 import type { DB } from './db/index.js';
 import type { Logger } from './logger.js';
 import type { ReplySettings } from './pipeline/replyStep.js';
+import { requireToken } from './reports/auth.js';
 import { reportRoutes } from './reports/routes.js';
 import { reviewRoutes } from './review/routes.js';
 import { webhookRoutes, type EnqueueFn } from './webhook/routes.js';
@@ -17,6 +18,8 @@ export interface AppDeps {
   reports?: { db: DB; reportToken: string };
   /** Página de revisión (mismo token que los informes). */
   review?: { db: DB; reportToken: string; settings: Pick<ReplySettings, 'delayMinSec' | 'delayMaxSec' | 'reviewMode'> };
+  /** Estado del servicio en JSON (mismo token). */
+  status?: { reportToken: string; get: () => Record<string, unknown> };
 }
 
 /** Construye la app HTTP sin arrancarla (los tests la usan con `app.inject`). */
@@ -32,6 +35,21 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   await app.register(webhookRoutes, deps.webhook);
   if (deps.reports) await app.register(reportRoutes, deps.reports);
   if (deps.review) await app.register(reviewRoutes, deps.review);
+  if (deps.status) {
+    const status = deps.status;
+    const db = deps.reports?.db;
+    await app.register(async (scope) => {
+      scope.addHook('onRequest', requireToken(status.reportToken));
+      scope.get('/status', async () => {
+        const counts = db
+          ? Object.fromEntries(
+              (db.prepare('SELECT status, COUNT(*) AS n FROM comments GROUP BY status').all() as { status: string; n: number }[]).map((r) => [r.status, r.n]),
+            )
+          : {};
+        return { ...status.get(), comments: counts };
+      });
+    });
+  }
 
   return app;
 }

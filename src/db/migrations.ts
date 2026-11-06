@@ -107,4 +107,10 @@ export const MIGRATIONS: readonly string[] = [
     n_comments      INTEGER NOT NULL DEFAULT 0
   );
   `,
+
+  // 3 — fase (f): intentos de publicación (independientes de los del worker)
+  `
+  ALTER TABLE comments ADD COLUMN publish_attempts INTEGER NOT NULL DEFAULT 0;
+  CREATE INDEX comments_publish_idx ON comments (status, publish_at);
+  `,
 ];

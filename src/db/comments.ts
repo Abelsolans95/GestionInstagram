@@ -42,6 +42,7 @@ export interface CommentRow {
   publish_at: number | null;
   replied_at: number | null;
   reply_comment_id: string | null;
+  publish_attempts: number;
   created_at: number;
   updated_at: number;
 }

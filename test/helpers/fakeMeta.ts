@@ -28,6 +28,7 @@ export interface RecordedCall {
   method: string;
   path: string;
   params: Record<string, string>;
+  body?: unknown;
 }
 
 export function createFakeMeta(opts: FakeMetaOptions) {
@@ -74,7 +75,7 @@ export function createFakeMeta(opts: FakeMetaOptions) {
     const params = Object.fromEntries(u.searchParams.entries());
     const method = (init.method ?? 'GET').toUpperCase();
     const path = u.pathname.replace(/^\/v\d+\.\d+\//, '/');
-    calls.push({ method, path, params });
+    calls.push({ method, path, params, ...(typeof init.body === 'string' ? { body: JSON.parse(init.body) } : {}) });
 
     const key = `${method} ${path}`;
     if (failTimes[key]) {

@@ -45,6 +45,19 @@ describe.skipIf(!apiKey)('extracción con Claude real (pregunta: "¿qué oficio 
     expect(r.answers_question).toBe(false);
   });
 
+  it('en un hilo, analiza al autor y no al comentario padre', async () => {
+    const r = await extractFromComment(llm, prompts, {
+      question: QUESTION,
+      caption: null,
+      existingLabels: ['herrero'],
+      username: 'dyland_dd04',
+      text: 'Quiero llamarme Dyland, y ser un jugador profesional de fútbol en la región para entretener a todos',
+      parent: { username: 'cesar_h_marquez', text: 'Yo quiero ser el que haga las herramientas' },
+    });
+    expect(r.answer_label).toBe('futbolista');
+    expect(r.character_name).toBe('Dyland');
+  });
+
   it('reutiliza una etiqueta existente en vez de crear un sinónimo', async () => {
     const r = await run('ana', 'yo quiero forjar espadas y hachas', ['herrero', 'agricultor']);
     expect(r.answer_label).toBe('herrero');
