@@ -1,0 +1,50 @@
+# Términos bloqueados: si un comentario contiene alguno, NO se responde (la extracción se hace igual).
+# Uno por línea. Se compara sin mayúsculas ni tildes y por palabras completas.
+# Termina en * para que valga como prefijo (gilipoll* → gilipollas, gilipollez...).
+# Ojo con palabras que en España se usan en positivo ("de puta madre"): mejor bloquear frases.
+# Además de esta lista, el modelo devuelve reply null ante insultos o polémica.
+
+# Insultos
+gilipoll*
+imbecil*
+subnormal*
+retrasado mental
+retrasada mental
+mongolo
+mongola
+idiota*
+estupid*
+capullo
+capulla
+hijo de puta
+hija de puta
+hijoputa
+hdp
+malparid*
+pendej*
+mamon
+zorra
+puta mierda
+asco de cuenta
+das asco
+dais asco
+basura de
+vete a la mierda
+que te den
+muerete
+ojala te mueras
+
+# Insultos discriminatorios
+maricon*
+negrat*
+sudaca*
+panchit*
+moro de mierda
+
+# Temas que prefiero no tocar (quita el # para activarlos)
+# politica
+# vox
+# pp
+# psoe
+# religion
+# aborto

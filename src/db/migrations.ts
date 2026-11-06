@@ -61,4 +61,50 @@ export const MIGRATIONS: readonly string[] = [
     updated_at  INTEGER NOT NULL
   );
   `,
+
+  // 2 — fase (c): vídeos (caption cacheado + pregunta), respuestas a la pregunta y participantes
+  `
+  CREATE TABLE media (
+    media_id             TEXT PRIMARY KEY,
+    shortcode            TEXT,
+    permalink            TEXT,
+    caption              TEXT,
+    media_type           TEXT,
+    posted_at            INTEGER,
+    owner_id             TEXT,
+    owner_username       TEXT,
+    is_own               INTEGER,                 -- 1 = vídeo tuyo, 0 = ajeno (p. ej. una mención)
+    question             TEXT,
+    question_source      TEXT CHECK (question_source IN ('caption', 'manual', 'none')),
+    question_updated_at  INTEGER,
+    fetched_at           INTEGER NOT NULL,
+    updated_at           INTEGER NOT NULL
+  );
+  CREATE INDEX media_shortcode_idx ON media (shortcode);
+
+  CREATE TABLE answers (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    media_id      TEXT NOT NULL,
+    question      TEXT,
+    username      TEXT NOT NULL,
+    answer        TEXT,
+    answer_label  TEXT,
+    comment_id    TEXT NOT NULL UNIQUE,
+    raw_text      TEXT NOT NULL,
+    created_at    INTEGER NOT NULL,              -- fecha del comentario
+    is_latest     INTEGER NOT NULL DEFAULT 1,    -- 1 = la respuesta que cuenta (la última)
+    n_answers     INTEGER NOT NULL DEFAULT 1     -- cuántas veces ha respondido a esta pregunta
+  );
+  CREATE INDEX answers_media_user_idx ON answers (media_id, username);
+  CREATE INDEX answers_media_label_idx ON answers (media_id, answer_label);
+
+  CREATE TABLE participants (
+    username        TEXT PRIMARY KEY,
+    ig_user_id      TEXT,
+    character_name  TEXT,
+    first_seen      INTEGER NOT NULL,
+    last_seen       INTEGER NOT NULL,
+    n_comments      INTEGER NOT NULL DEFAULT 0
+  );
+  `,
 ];

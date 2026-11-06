@@ -1,0 +1,34 @@
+# Frases típicas de spam: si un comentario contiene alguna, NI se analiza NI se responde.
+# Uno por línea, sin mayúsculas ni tildes, por palabras completas; * al final = prefijo.
+gana dinero
+ganar dinero
+dinero facil
+ingresos pasivos
+seguidores gratis
+followers gratis
+free followers
+check my profile
+check my bio
+mira mi perfil
+visita mi perfil
+link en mi bio
+enlace en mi bio
+promote it on
+dm for collab
+dm me for
+envia dm
+manda dm
+escribeme al dm
+escribeme por dm
+invierte en bitcoin
+invertir en cripto*
+forex
+onlyfans
+only fans
+sugar daddy
+sugar mommy
+gift card
+tarjeta regalo
+escribeme al whatsapp
+escribeme por whatsapp
+unete a mi telegram

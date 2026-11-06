@@ -14,7 +14,7 @@ Stack: Node.js 22 + TypeScript (Fastify), pnpm, SQLite. Despliegue en Railway.
 |---|---|---|
 | a | Webhook: verificación de Meta + firma `X-Hub-Signature-256` + simulador | ✅ |
 | b | Cola persistente + idempotencia + worker | ✅ |
-| c | Extracción + tablas + pregunta del vídeo + importación | pendiente |
+| c | Extracción + tablas + pregunta del vídeo + importación | ✅ |
 | d | Informes `/report/:mediaId` y `/participants` | pendiente |
 | e | Filtros + respuestas con Claude + modo revisión | pendiente |
 | f | Publicación + delay + tope por hora + refresco de token | pendiente |
@@ -133,6 +133,71 @@ No uses `railway run`: ejecuta en tu ordenador con una base de datos local disti
   `skipped`, `pending_review`, `scheduled` → `replied`, o `failed`. Los `imported` no entran nunca.
 - Todo vive en SQLite: si el servicio se reinicia, lo que quedó a medias vuelve a la cola.
 - Los payloads crudos se guardan 30 días en `webhook_events` para depurar.
+
+## Análisis de comentarios
+
+Por cada comentario (webhook o importación) se hace una **extracción** con Claude, separada de la
+respuesta, con el prompt [`prompts/extract.md`](prompts/extract.md). Devuelve
+`{"answers_question", "answer", "answer_label", "character_name"}`:
+
+- `answer_label` es una etiqueta corta normalizada ("el que haga las herramientas" → `herrero`).
+  Se le pasan al modelo las etiquetas ya usadas en ese vídeo para que las reutilice.
+- `character_name` solo si propone explícitamente un nombre para su personaje.
+- Si alguien responde varias veces a la misma pregunta, **vale la última** y queda marcado
+  (`answers.is_latest`, `answers.n_answers`).
+
+Tablas: `answers` (media_id, question, username, answer, answer_label, comment_id, raw_text,
+created_at) y `participants` (username único, ig_user_id, character_name, first_seen, last_seen,
+n_comments). El análisis se hace también para los comentarios que no se responden (enlaces,
+términos bloqueados...), salvo los propios y el spam.
+
+### La pregunta de cada vídeo
+
+Cada vídeo hace una pregunta distinta. El sistema intenta sacarla del caption con Claude
+([`prompts/question.md`](prompts/question.md)) y la guarda por vídeo. Como a menudo la pregunta
+solo se dice en el vídeo, puedes fijarla o corregirla a mano:
+
+```bash
+pnpm question list --refresh                     # tus vídeos y su pregunta
+pnpm question set https://www.instagram.com/reel/XXXX/ "¿qué oficio quieres?" --reextract
+pnpm question set 17900000000000001 "¿qué construimos primero?"
+pnpm question get <media-id|url>
+pnpm question detect <media-id|url> [--force]    # volver a intentarlo desde el caption
+pnpm reextract <media-id|url>                    # re-analizar los comentarios de ese vídeo
+```
+
+Una pregunta fijada a mano nunca se sobrescribe.
+
+### Importar los comentarios que ya existen
+
+`pnpm import:comments` recorre los comentarios de tus vídeos (`GET /{media-id}/comments` con
+paginación, incluidas las respuestas en hilos) y los pasa por la extracción **sin responderlos**.
+
+> ⚠️ **Lánzala siempre con `REVIEW_MODE=true`** como red de seguridad. El comando se niega a
+> ejecutarse si no (salvo `--dry-run`).
+
+```bash
+pnpm import:comments --dry-run                         # muestra lo que extraería, no guarda nada
+pnpm import:comments --dry-run --media <media-id|url>  # solo un vídeo
+pnpm import:comments                                   # importa todo
+pnpm import:comments --max-media 5 2> import.log       # los 5 vídeos más recientes; logs JSON aparte
+```
+
+Orden recomendado: `pnpm question list --refresh` → fija las preguntas que falten con
+`pnpm question set` → `pnpm import:comments`.
+
+Garantías (con tests en `test/import.test.ts` y `test/architecture.test.ts`):
+
+- No usa la cola ni el worker de respuestas: llama directamente al módulo de extracción.
+- No importa ni instancia el cliente de escritura de Meta; solo el de lectura (GET).
+- Marca cada comentario importado con status `imported`; el worker nunca responde a esos,
+  aunque Meta reenvíe después un webhook del mismo comentario.
+- `--dry-run` no escribe nada en la base de datos.
+- Test: importación con la API de Meta mockeada → ninguna petición POST.
+
+En local, los comandos usan el código compilado: ejecuta `pnpm build` antes (o
+`pnpm tsx src/cli/question.ts ...`). Para probar los prompts con Claude real:
+`pnpm test:live` (necesita `ANTHROPIC_API_KEY`).
 
 ## Variables de entorno
 

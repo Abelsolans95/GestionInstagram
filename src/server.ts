@@ -1,25 +1,23 @@
 import './env.js';
 import { buildApp } from './app.js';
 import { loadConfig } from './config.js';
-import { openDb } from './db/index.js';
 import { createLogger } from './logger.js';
+import { createCommentProcessor, pendingReplyStep } from './pipeline/processComment.js';
 import { createCommentQueue, pruneWebhookEvents } from './queue/commentQueue.js';
-import { createReplyWorker, type CommentProcessor } from './worker/replyWorker.js';
+import { createCoreServices } from './services.js';
+import { createReplyWorker } from './worker/replyWorker.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 async function main(): Promise<void> {
   const config = loadConfig();
   const logger = createLogger(config.logLevel);
-  const db = openDb(config.databasePath);
+  const services = createCoreServices(config, logger);
+  const { db } = services;
   const queue = createCommentQueue(db);
 
-  // Fase (b): el pipeline (extracción → filtros → respuesta) llega en las fases c y e.
-  const processComment: CommentProcessor = async () => ({
-    status: 'skipped',
-    decision: 'pipeline_pendiente',
-    reason: 'el pipeline se implementa en las fases c y e',
-  });
+  // Extracción → filtros → respuesta (la respuesta llega en la fase e).
+  const processComment = createCommentProcessor({ ...services.analysis, replyStep: pendingReplyStep });
 
   const worker = createReplyWorker({ db, queue, processComment, logger });
 

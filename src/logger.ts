@@ -48,8 +48,9 @@ export function loggerOptions(level: string): LoggerOptions {
   };
 }
 
-export function createLogger(level: string): Logger {
-  return pino(loggerOptions(level));
+/** Logger JSON. Los comandos CLI lo mandan a stderr (fd 2) para que la salida legible vaya limpia. */
+export function createLogger(level: string, fd: 1 | 2 = 1): Logger {
+  return fd === 1 ? pino(loggerOptions(level)) : pino(loggerOptions(level), pino.destination(2));
 }
 
 export type { Logger };

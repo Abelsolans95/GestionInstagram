@@ -17,5 +17,8 @@ WORKDIR /app
 COPY --from=build /app/package.json ./
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
+# Prompts y listas editables (se leen en tiempo de ejecución)
+COPY prompts ./prompts
+COPY config ./config
 EXPOSE 3000
 CMD ["node", "dist/src/server.js"]

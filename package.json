@@ -15,9 +15,14 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "simulate:webhook": "tsx scripts/simulate-webhook.ts"
+    "simulate:webhook": "tsx scripts/simulate-webhook.ts",
+    "question": "node dist/src/cli/question.js",
+    "reextract": "node dist/src/cli/reextract.js",
+    "import:comments": "node dist/src/cli/import.js",
+    "test:live": "vitest run --config vitest.live.config.ts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^1.6.0",
     "better-sqlite3": "^13.0.3",
     "fastify": "^5.12.8",
     "pino": "^10.4.0",

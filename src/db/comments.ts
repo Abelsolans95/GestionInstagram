@@ -74,6 +74,8 @@ export function insertCommentIfNew(db: DB, c: NewComment, now = Date.now()): boo
     )
     .run({
       ...c,
+      // Los usernames de Instagram no distinguen mayúsculas: se guardan en minúscula.
+      username: c.username ? c.username.toLowerCase() : null,
       parentChecked: c.parentChecked ? 1 : 0,
       threadId: c.parentId ?? (c.parentChecked ? c.commentId : null),
       now,
