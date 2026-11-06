@@ -70,13 +70,15 @@ async function main(): Promise<void> {
         review_mode: config.replies.reviewMode,
         replies_last_hour: publisher.repliesLastHour(),
         max_replies_per_hour: config.replies.maxPerHour,
+        meta_login: config.meta.login,
         token: services.tokens.status(),
         polling: config.poll.intervalSec > 0,
       }),
     },
   });
 
-  // Refresco del token de larga duración (60 días): se comprueba cada 6 h y se refresca cada 7 días.
+  // Refresco del token de larga duración (60 días) — solo con META_LOGIN=instagram. Con el login
+  // unificado el token de usuario del sistema no caduca por defecto.
   const refreshToken = async () => {
     try {
       if (await services.tokens.refreshIfDue()) logger.info(services.tokens.status(), 'token de Instagram refrescado');
@@ -90,9 +92,11 @@ async function main(): Promise<void> {
       );
     }
   };
-  const tokenTimer = setInterval(() => void refreshToken(), 6 * HOUR_MS);
-  tokenTimer.unref();
-  setTimeout(() => void refreshToken(), 60_000).unref();
+  if (config.meta.login === 'instagram') {
+    const tokenTimer = setInterval(() => void refreshToken(), 6 * HOUR_MS);
+    tokenTimer.unref();
+    setTimeout(() => void refreshToken(), 60_000).unref();
+  }
 
   const prune = () => {
     const n = pruneWebhookEvents(db, 30 * DAY_MS);
@@ -118,7 +122,13 @@ async function main(): Promise<void> {
   poller.start();
   await app.listen({ port: config.port, host: config.host });
   logger.info(
-    { review_mode: config.replies.reviewMode, model: config.claude.model, api_version: config.meta.apiVersion },
+    {
+      review_mode: config.replies.reviewMode,
+      model: config.claude.model,
+      api_version: config.meta.apiVersion,
+      meta_login: config.meta.login,
+      graph_url: config.meta.graphUrl,
+    },
     'servicio listo',
   );
 }

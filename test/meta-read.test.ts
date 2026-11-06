@@ -106,3 +106,19 @@ describe('cliente de lectura', () => {
     expect(meta.calls.every((c) => c.path === `/${IG_USER_ID}/media`)).toBe(true);
   });
 });
+
+describe('login unificado vs login de Instagram', () => {
+  it('unified: tu cuenta se lee con GET /{IG_USER_ID} (no con /me)', async () => {
+    const meta = createFakeMeta({ igUserId: IG_USER_ID, username: OWN_USERNAME, media: [], threads: {} });
+    const read = createReadClient({ graph: graphFor(meta.fetch), igUserId: IG_USER_ID, login: 'unified' });
+    expect(await read.getMe()).toEqual({ user_id: IG_USER_ID, username: OWN_USERNAME });
+    expect(meta.calls.map((c) => c.path)).toEqual([`/${IG_USER_ID}`]);
+  });
+
+  it('instagram: usa GET /me?fields=user_id,username', async () => {
+    const meta = createFakeMeta({ igUserId: IG_USER_ID, username: OWN_USERNAME, media: [], threads: {} });
+    const read = createReadClient({ graph: graphFor(meta.fetch), igUserId: IG_USER_ID, login: 'instagram' });
+    await read.getMe();
+    expect(meta.calls[0]).toMatchObject({ path: '/me', params: { fields: 'user_id,username' } });
+  });
+});

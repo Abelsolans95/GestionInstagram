@@ -33,7 +33,14 @@ const envSchema = z
     IG_USER_ID: z.string().trim().regex(/^\d+$/, 'debe ser numérico (user_id de GET /me)'),
     WEBHOOK_VERIFY_TOKEN: nonEmpty,
     META_API_VERSION: z.string().trim().regex(/^v\d+\.\d+$/, 'formato vNN.N').default('v27.0'),
-    META_GRAPH_URL: z.string().trim().url().default('https://graph.instagram.com'),
+    /**
+     * Cómo está configurada la app de Meta:
+     *  - unified:   "API setup with Unified login" (graph.facebook.com, token de usuario del sistema)
+     *  - instagram: "API setup with Instagram login" (graph.instagram.com, token de usuario de Instagram)
+     */
+    META_LOGIN: z.enum(['unified', 'instagram']).default('unified'),
+    /** Solo para forzar otro host (pruebas). Por defecto depende de META_LOGIN. */
+    META_GRAPH_URL: z.string().trim().url().optional(),
 
     // Claude
     ANTHROPIC_API_KEY: nonEmpty,
@@ -78,6 +85,7 @@ export interface AppConfig {
     igUserId: string;
     apiVersion: string;
     graphUrl: string;
+    login: 'unified' | 'instagram';
   };
   claude: { apiKey: string; model: string };
   replies: {
@@ -112,7 +120,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
       accessToken: e.IG_ACCESS_TOKEN,
       igUserId: e.IG_USER_ID,
       apiVersion: e.META_API_VERSION,
-      graphUrl: e.META_GRAPH_URL.replace(/\/+$/, ''),
+      graphUrl: (
+        e.META_GRAPH_URL ?? (e.META_LOGIN === 'instagram' ? 'https://graph.instagram.com' : 'https://graph.facebook.com')
+      ).replace(/\/+$/, ''),
+      login: e.META_LOGIN,
     },
     claude: { apiKey: e.ANTHROPIC_API_KEY, model: e.CLAUDE_MODEL },
     replies: {

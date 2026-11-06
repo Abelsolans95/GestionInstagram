@@ -96,6 +96,8 @@ export function createFakeMeta(opts: FakeMetaOptions) {
       return json({ access_token: 'refreshed-token', token_type: 'bearer', expires_in: 5183944 });
     }
     if (parts[0] === 'me') return json({ user_id: opts.igUserId, username: opts.username });
+    // Login unificado: la cuenta se lee con GET /{ig-user-id}
+    if (parts.length === 1 && parts[0] === opts.igUserId) return json({ id: opts.igUserId, username: opts.username });
     if (parts.length === 2 && parts[0] === opts.igUserId && parts[1] === 'media') {
       return json(page(opts.media.map((m) => pick(m, params.fields)), params));
     }

@@ -32,6 +32,15 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
 
   app.get('/health', async () => ({ ok: true }));
 
+  // URL de redirección para la configuración de Meta (login unificado). El servicio no usa el
+  // flujo de login (el token se genera en el panel de Meta); esta página solo confirma la vuelta.
+  app.get('/auth/callback', async (_req, reply) =>
+    reply
+      .type('text/html; charset=utf-8')
+      .header('referrer-policy', 'no-referrer')
+      .send('<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width"><p>Listo. Puedes cerrar esta ventana.</p>'),
+  );
+
   await app.register(webhookRoutes, deps.webhook);
   if (deps.reports) await app.register(reportRoutes, deps.reports);
   if (deps.review) await app.register(reviewRoutes, deps.review);

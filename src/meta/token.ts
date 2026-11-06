@@ -49,6 +49,11 @@ export interface TokenStoreOptions {
   /** Contexto Graph para el refresco (usa graphGet sin versión). */
   graph: Omit<GraphContext, 'getAccessToken'>;
   refreshEveryMs?: number;
+  /**
+   * false con el login unificado: el token de usuario del sistema no caduca por defecto y no se
+   * refresca con /refresh_access_token (eso es solo para tokens de usuario de Instagram).
+   */
+  refreshable?: boolean;
   now?: () => number;
 }
 
@@ -93,6 +98,10 @@ export function createTokenStore(opts: TokenStoreOptions): TokenStore {
       };
     },
     async refreshIfDue(force = false) {
+      if (opts.refreshable === false) {
+        if (force) throw new Error('Con META_LOGIN=unified el token no se refresca: es un token de usuario del sistema que no caduca.');
+        return false;
+      }
       let current = load();
       const last = current.refreshedAt ?? current.obtainedAt;
       const neverRefreshed = current.refreshedAt === null;

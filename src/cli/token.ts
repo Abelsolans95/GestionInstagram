@@ -14,6 +14,9 @@ runCli(async () => {
   } else if (cmd !== 'status') {
     throw new Error('Uso: pnpm token status | pnpm token refresh');
   }
+  if (s.config.meta.login === 'unified') {
+    console.log('META_LOGIN=unified: token de usuario del sistema (no caduca por defecto; se ve en la vista previa de la configuración en Meta).');
+  }
   const st = s.tokens.status();
   console.log(`origen: ${st.source === 'env' ? 'IG_ACCESS_TOKEN (aún no refrescado)' : 'refrescado y guardado en la BD'}`);
   console.log(`último refresco: ${fmtDate(st.refreshedAt)} · caduca: ${fmtDate(st.expiresAt)}`);

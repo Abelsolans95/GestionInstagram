@@ -33,6 +33,11 @@ function isUnknownFieldError(err: unknown): boolean {
 export interface ReadClientOptions {
   graph: GraphContext;
   igUserId: string;
+  /**
+   * unified: con el token de usuario del sistema, /me es ese usuario del sistema y no tu cuenta,
+   * así que tu cuenta se lee con GET /{IG_USER_ID}. instagram: GET /me?fields=user_id,username.
+   */
+  login?: 'unified' | 'instagram';
   onWarning?: (msg: string, data?: Record<string, unknown>) => void;
 }
 
@@ -83,7 +88,13 @@ export function createReadClient(opts: ReadClientOptions): ReadClient {
   }
 
   return {
-    getMe: () => graphGet<IgMe>(graph, 'me', { fields: 'user_id,username' }),
+    getMe: async () => {
+      if ((opts.login ?? 'unified') === 'instagram') {
+        return graphGet<IgMe>(graph, 'me', { fields: 'user_id,username' });
+      }
+      const u = await graphGet<{ id: string; username?: string }>(graph, igUserId, { fields: 'id,username' });
+      return { user_id: u.id, username: u.username ?? '' };
+    },
 
     getMedia: (mediaId) =>
       getWithFallback('media', () => graphGet<IgMedia>(graph, mediaId, { fields: mediaFields() })),

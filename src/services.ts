@@ -48,11 +48,17 @@ export function createCoreServices(
     ...(overrides.fetch ? { fetch: overrides.fetch } : {}),
     ...(overrides.sleep ? { sleep: overrides.sleep } : {}),
   };
-  const tokens = createTokenStore({ db, envToken: config.meta.accessToken, graph: graphBase });
+  const tokens = createTokenStore({
+    db,
+    envToken: config.meta.accessToken,
+    graph: graphBase,
+    refreshable: config.meta.login === 'instagram',
+  });
   const graph: GraphContext = { ...graphBase, getAccessToken: () => tokens.get() };
   const read = createReadClient({
     graph,
     igUserId: config.meta.igUserId,
+    login: config.meta.login,
     onWarning: (msg, data) => logger.warn(data ?? {}, msg),
   });
   const llm =

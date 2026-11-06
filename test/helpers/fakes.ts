@@ -22,7 +22,8 @@ export function testConfig(overrides: Partial<AppConfig['replies']> = {}): AppCo
       accessToken: 'env-token',
       igUserId: IG_USER_ID,
       apiVersion: 'v27.0',
-      graphUrl: 'https://graph.instagram.com',
+      graphUrl: 'https://graph.facebook.com',
+      login: 'unified',
     },
     claude: { apiKey: 'test', model: 'claude-haiku-5-5' },
     replies: {

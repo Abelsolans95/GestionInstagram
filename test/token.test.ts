@@ -75,3 +75,20 @@ describe('token de larga duración', () => {
     expect(t.status().lastError).toContain('token demasiado reciente');
   });
 });
+
+describe('token con login unificado', () => {
+  it('no se refresca (token de usuario del sistema sin caducidad)', async () => {
+    const db = openDb(':memory:');
+    let called = false;
+    const t = createTokenStore({
+      db,
+      envToken: 'suat',
+      refreshable: false,
+      graph: { baseUrl: 'https://graph.facebook.com', version: 'v27.0', fetch: async () => ((called = true), new Response('{}')) },
+    });
+    expect(await t.refreshIfDue()).toBe(false);
+    await expect(t.refreshIfDue(true)).rejects.toThrow(/no se refresca/);
+    expect(called).toBe(false);
+    expect(t.get()).toBe('suat');
+  });
+});

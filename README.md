@@ -1,6 +1,7 @@
 # Comentarios de Instagram · @humanidaddesdecero
 
-Servicio que, con la API oficial de Meta (Instagram API con Instagram Login) y Claude:
+Servicio que, con la API oficial de Meta (Instagram API con inicio de sesión unificado, o con
+inicio de sesión de Instagram) y Claude:
 
 1. **Responde automáticamente** a los comentarios de tus vídeos (principales y respuestas en
    hilos), con tu estilo, empezando siempre por `@usuario`.
@@ -8,7 +9,21 @@ Servicio que, con la API oficial de Meta (Instagram API con Instagram Login) y C
    oficio quiere) y qué nombre de personaje pide, en informes legibles desde el móvil y en CSV.
 
 Stack: Node.js 22 + TypeScript (Fastify), pnpm, SQLite (`better-sqlite3`), Claude Haiku
-(`claude-haiku-5-5`), Graph API de Instagram `v27.0`. Despliegue en Railway con Docker.
+(`claude-haiku-5-5`), Graph API `v27.0`. Despliegue en Railway con Docker.
+
+**Modo de conexión con Meta** (`META_LOGIN`):
+
+| | `unified` (por defecto, recomendado por Meta) | `instagram` |
+|---|---|---|
+| Panel de Meta | *API setup with Unified login* | *API setup with Instagram login* |
+| Host | `graph.facebook.com` | `graph.instagram.com` |
+| Token | Usuario del sistema, no caduca por defecto | Usuario de Instagram, 60 días (se refresca solo) |
+| Tu cuenta | `GET /{IG_USER_ID}` | `GET /me` |
+| Secret de la firma | Clave secreta de la app de Meta | Instagram app secret |
+| Requisitos | App en un portfolio comercial | — |
+
+Ninguno de los dos necesita una Página de Facebook. Los endpoints de comentarios
+(`/{media-id}/comments`, `/{comment-id}/replies`) son los mismos en ambos.
 
 > 👉 **Para ponerlo en marcha, sigue [`instrucciones.md`](instrucciones.md)** (paso a paso).
 
@@ -43,52 +58,31 @@ Meta ──POST /webhook/instagram──▶ firma OK? ──▶ INSERT OR IGNORE
 6. Durante los 3 primeros días revisa y aprueba desde el móvil: `https://TU_DOMINIO/review?token=…`.
 7. Cuando te fíes, pon `REVIEW_MODE=false` en Railway: las respuestas se publicarán solas.
 
-## 1. Configurar Meta (Instagram API con Instagram Login)
+## 1. Configurar Meta
 
-Lo que necesitas:
+El paso a paso detallado, con el **inicio de sesión unificado**, está en
+[`instrucciones.md`](instrucciones.md). Resumen:
 
-- **Cuenta de Instagram profesional y pública.** Una cuenta *creator* vale: la plataforma da
-  acceso a cuentas profesionales, tanto *business* como *creator*. Las cuentas privadas no
-  reciben notificaciones de comentarios.
-- **Una cuenta de Facebook** para registrarte como desarrollador de Meta: con la sesión de
-  Facebook iniciada, entra en <https://developers.facebook.com/async/registration> y confirma
-  teléfono y email. **No** necesitas una Página de Facebook (eso es solo para "Facebook Login").
+- Cuenta de Instagram **profesional y pública** (*creator* vale) y tu cuenta personal de Facebook
+  para el panel de desarrolladores. No hace falta Página de Facebook.
+- App con el caso de uso **Administrar mensajes y contenido en Instagram** → *Personalizar* →
+  **API setup with Unified login**:
+  1. *Create new configuration* (con `instagram_basic` e `instagram_manage_comments`), con la
+     URL de redirección `https://TU_DOMINIO/auth/callback`.
+  2. *Generate access tokens* → invitar a tu Instagram como tester → aceptar en
+     instagram.com (Configuración › Permisos de sitios web › Apps y sitios web ›
+     Invitaciones de tester) → *Generate token* → `IG_ACCESS_TOKEN`. Solo se muestra una vez.
+  3. `IG_USER_ID`: el `id` de
+     `https://graph.facebook.com/v27.0/me/assigned_instagram_accounts?fields=id,username&access_token=TOKEN`.
+  4. `IG_APP_ID` / `IG_APP_SECRET`: *Configuración de la app › Básica* (los de la app de Meta).
+  5. Webhook: callback `https://TU_DOMINIO/webhook/instagram`, tu verify token, campo `comments`, y
+     `POST https://graph.facebook.com/v27.0/{IG_USER_ID}/subscribed_apps?subscribed_fields=comments&access_token=TOKEN`.
+- Con Standard Access (sin App Review) basta para tu propia cuenta: la documentación indica que
+  sirve para quien tiene un rol en la app, y tu Instagram lo tiene como tester.
 
-Pasos (según la guía *Create a Meta app for the Instagram API*):
-
-1. **Crear la app**: <https://developers.facebook.com/apps> → *Create App* → caso de uso
-   **Other** → tipo **Business** → nombre y email.
-2. **Añadir el producto Instagram** → *Set up*. Se añade **API setup with Instagram login**.
-   El **Instagram App ID** y el **Instagram app secret** están en *Instagram › API setup with
-   Instagram login › 3. Set up Instagram business login › Business login settings*
-   → `IG_APP_ID` e `IG_APP_SECRET`.
-3. **Permisos**: `instagram_business_basic` e `instagram_business_manage_comments`. Para una app
-   que solo usa tu propia cuenta, la guía de *App Review* indica **Standard Access, sin revisión**.
-4. **Generar el token**: en *API setup with Instagram login* → *Generate access tokens* →
-   *Add account* e inicia sesión con @humanidaddesdecero (la cuenta debe ser pública). Concede
-   los dos permisos y copia el token → `IG_ACCESS_TOKEN`.
-   El servicio necesita un token de **larga duración** (60 días). Si el que te da el panel fuese
-   de corta duración, cámbialo así (guía *Business Login for Instagram*):
-   ```bash
-   curl "https://graph.instagram.com/access_token?grant_type=ig_exchange_token&client_secret=TU_IG_APP_SECRET&access_token=TOKEN_CORTO"
-   ```
-5. **Tu IG_USER_ID**:
-   ```bash
-   curl "https://graph.instagram.com/v27.0/me?fields=user_id,username&access_token=TU_TOKEN"
-   ```
-   El campo `user_id` es `IG_USER_ID` (es el mismo `id` que llega en `entry[].id` de los webhooks).
-6. **Configurar el webhook** (sección *Configure webhooks*): *Callback URL* =
-   `https://TU_DOMINIO/webhook/instagram`, *Verify token* = el valor de `WEBHOOK_VERIFY_TOKEN`
-   → *Verify and save*. Meta hace el GET de verificación, así que el servidor tiene que estar ya
-   desplegado (Railway) o expuesto con ngrok. Después, en la lista de campos, deja **suscrito
-   `comments`** (puedes desuscribir los de mensajería).
-7. **Activar las notificaciones para tu cuenta** (la guía lo pide para Instagram Login):
-   ```bash
-   curl -X POST "https://graph.instagram.com/v27.0/TU_IG_USER_ID/subscribed_apps?subscribed_fields=comments&access_token=TU_TOKEN"
-   # → {"success": true}
-   ```
-8. **Probar**: botón *Test* del campo `comments` en el panel de webhooks (lo verás en los logs) y
-   después un comentario real desde otra cuenta.
+Si tu app tiene la pestaña **API setup with Instagram login**, también vale: pon
+`META_LOGIN=instagram`, usa el *Instagram app secret* y el token de esa pestaña, y saca
+`IG_USER_ID` con `https://graph.instagram.com/v27.0/me?fields=user_id,username&access_token=TOKEN`.
 
 > ⚠️ **Si el *Test* funciona pero los comentarios reales no llegan**: la guía de webhooks dice que
 > la app debe estar **Live** para recibir notificaciones (y pasar a Live pide URL de política de
@@ -199,12 +193,17 @@ aprobar, se programa con el delay aleatorio y sale respetando el tope por hora.
   pnpm review stats
   ```
 
-### Token de larga duración
+### Token
 
-El token dura 60 días. El servicio lo refresca solo (`GET /refresh_access_token?grant_type=ig_refresh_token`)
-cada 7 días (lo comprueba cada 6 h; Meta exige que tenga al menos 24 h). Como Railway no deja que la
-app reescriba sus variables, el token vigente se guarda en SQLite; si cambias `IG_ACCESS_TOKEN` en
-Railway, se adopta el nuevo. `pnpm token status` / `pnpm token refresh`.
+- **`META_LOGIN=unified`**: token de usuario del sistema; según la documentación de Facebook Login
+  for Business, por defecto **no caduca**. Deja de valer si quitas la app de tu portfolio
+  comercial o mueves la cuenta a otro portfolio: genera otro y cambia `IG_ACCESS_TOKEN`.
+- **`META_LOGIN=instagram`**: el token dura 60 días y el servicio lo refresca solo
+  (`GET graph.instagram.com/refresh_access_token?grant_type=ig_refresh_token`) cada 7 días (lo
+  comprueba cada 6 h; Meta exige que tenga al menos 24 h). El token vigente se guarda en SQLite;
+  si cambias `IG_ACCESS_TOKEN` en Railway, se adopta el nuevo.
+
+`pnpm token status` / `pnpm token refresh`.
 
 ## Análisis de comentarios
 
@@ -292,10 +291,11 @@ y `error`. Los tokens nunca aparecen en los logs. Los payloads crudos de los web
 
 | Variable | Por defecto | |
 |---|---|---|
-| `IG_APP_ID` | — | Instagram App ID (informativo) |
-| `IG_APP_SECRET` | — | Instagram app secret: valida la firma de los webhooks |
-| `IG_ACCESS_TOKEN` | — | Token de larga duración inicial |
-| `IG_USER_ID` | — | `user_id` de `GET /me` |
+| `META_LOGIN` | `unified` | `unified` o `instagram` (ver arriba) |
+| `IG_APP_ID` | — | ID de la app (informativo) |
+| `IG_APP_SECRET` | — | Valida la firma de los webhooks (unified: clave secreta de la app de Meta) |
+| `IG_ACCESS_TOKEN` | — | Token generado en el panel de Meta |
+| `IG_USER_ID` | — | ID de tu cuenta profesional de Instagram |
 | `WEBHOOK_VERIFY_TOKEN` | — | El mismo texto que pongas en Meta |
 | `ANTHROPIC_API_KEY` | — | |
 | `REPLY_DELAY_MIN` / `REPLY_DELAY_MAX` | 60 / 300 | Segundos |
@@ -328,15 +328,15 @@ En local, los comandos (`pnpm question`, `pnpm review`, …) usan el código com
 - **Live / Advanced Access**: la guía de webhooks dice que la app debe estar Live y que `comments`
   requiere Advanced Access; la guía de App Review dice que para tu propia cuenta basta Standard
   Access. Ver el plan B.
-- **Secreto de la firma**: la doc solo dice "App Secret". Con Instagram Login hay un *Instagram app
-  secret* distinto del *App secret* de *App settings › Basic*. Usamos el de Instagram; si los
-  webhooks reales dan 401 por firma inválida, prueba con el otro.
+- **Secreto de la firma**: la doc solo dice "App Secret". Con el login unificado el webhook es de
+  la app de Meta, así que usamos su clave secreta; con `META_LOGIN=instagram`, el *Instagram app
+  secret*. Si los webhooks reales dan 401 por firma inválida, prueba con el otro.
 - **Forma del payload**: la doc muestra dos formas distintas (con y sin `changes`, `id` o
   `comment_id`, con o sin `parent_id`). Se aceptan todas; si falta `parent_id`, el worker lee el
   comentario para saber si es una respuesta.
-- **`caption`**: la referencia de IG Media dice que es solo para Facebook Login, pero el changelog
-  indica que también se devuelve en `graph.instagram.com`. Se pide y, si Meta lo rechaza, se sigue
-  sin él (la pregunta habrá que fijarla a mano).
+- **`caption`**: la referencia de IG Media dice que es solo para Facebook Login (en
+  `graph.facebook.com`, que es el host del login unificado); el changelog indica que también se
+  devuelve en `graph.instagram.com`. Se pide y, si Meta lo rechaza, se sigue sin él.
 - **Comentarios propios**: se comparan por `IG_USER_ID` y además por username.
 
 ## Estructura
