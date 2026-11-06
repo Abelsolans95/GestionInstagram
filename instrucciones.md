@@ -48,12 +48,17 @@ REPORT_TOKEN=
 
 - [ ] **2.1 Regístrate como desarrollador.** Con la sesión de Facebook abierta, entra en
   <https://developers.facebook.com/async/registration> y confirma el teléfono y el email.
-- [ ] **2.2 Crea la app.** Entra en <https://developers.facebook.com/apps> → **Create App**.
-  - Caso de uso: **Other**.
-  - Tipo: **Business**.
+- [ ] **2.2 Crea la app.** Entra en <https://developers.facebook.com/apps> → **Crear app**
+  (en el filtro de la lista deja "Todas las apps"; el "portfolio comercial" no hace falta).
+  - Caso de uso: **Administrar mensajes y contenido en Instagram**. Si no aparece, elige
+    **Other** y luego el tipo **Business**.
   - Pon un nombre (p. ej. "Humanidad comentarios") y tu email.
-- [ ] **2.3 Añade el producto Instagram.** En el panel de la app, busca **Instagram** → **Set up**.
-  Se crea la sección **API setup with Instagram login**.
+  - Si te pide conectar un negocio / portfolio comercial, elige no hacerlo por ahora: solo se
+    exige para pasar la app a modo Live.
+  - Si te hace elegir entre inicio de sesión con Instagram o con Facebook, elige **Instagram**.
+- [ ] **2.3 Comprueba el producto Instagram.** En el menú de la app debe aparecer **Instagram ›
+  API setup with Instagram login** (puede salir traducido). Si no está, busca **Instagram** en
+  los productos → **Set up**.
 - [ ] **2.4 Copia el App ID y el secret.** Están en *Instagram › API setup with Instagram login
   › 3. Set up Instagram business login › Business login settings*:
   - **Instagram App ID** → `IG_APP_ID`
