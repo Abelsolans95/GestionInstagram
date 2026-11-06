@@ -13,7 +13,7 @@ Stack: Node.js 22 + TypeScript (Fastify), pnpm, SQLite. Despliegue en Railway.
 | Fase | Contenido | Estado |
 |---|---|---|
 | a | Webhook: verificación de Meta + firma `X-Hub-Signature-256` + simulador | ✅ |
-| b | Cola persistente + idempotencia + worker | pendiente |
+| b | Cola persistente + idempotencia + worker | ✅ |
 | c | Extracción + tablas + pregunta del vídeo + importación | pendiente |
 | d | Informes `/report/:mediaId` y `/participants` | pendiente |
 | e | Filtros + respuestas con Claude + modo revisión | pendiente |
@@ -115,7 +115,24 @@ pnpm simulate:webhook --verify --url https://<subdominio>.ngrok-free.app/webhook
 
 El repo incluye un `Dockerfile`; Railway lo detecta y lo usa. Configura las variables de
 `.env.example` en *Variables* del servicio y genera un dominio público (*Settings › Networking*):
-esa es la URL HTTPS para el webhook. Railway inyecta `PORT`. (El volumen para SQLite se añade en la fase b.)
+esa es la URL HTTPS para el webhook. Railway inyecta `PORT`.
+
+**SQLite necesita un volumen persistente** (si no, la base de datos se borra en cada despliegue):
+en el servicio, *+ New › Volume*, móntalo en `/data`. La imagen ya usa `DATABASE_PATH=/data/app.db`.
+Mantén **una sola réplica** (SQLite es un fichero local).
+
+Los comandos (`pnpm question`, `pnpm review`, `pnpm import`) tienen que ejecutarse **dentro del
+contenedor**, que es donde está la base de datos: `railway ssh` y, dentro, `pnpm <comando>`.
+No uses `railway run`: ejecuta en tu ordenador con una base de datos local distinta.
+
+## Cómo funciona la cola
+
+- El webhook valida la firma, hace `INSERT OR IGNORE` en la tabla `comments` (clave `comment_id`)
+  con status `queued` y responde 200. Si Meta reenvía el mismo comentario, no se inserta otra vez.
+- El worker reclama los `queued` de uno en uno (`processing`) y deja el estado final:
+  `skipped`, `pending_review`, `scheduled` → `replied`, o `failed`. Los `imported` no entran nunca.
+- Todo vive en SQLite: si el servicio se reinicia, lo que quedó a medias vuelve a la cola.
+- Los payloads crudos se guardan 30 días en `webhook_events` para depurar.
 
 ## Variables de entorno
 

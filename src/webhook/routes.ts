@@ -1,4 +1,5 @@
 import type { FastifyPluginAsync } from 'fastify';
+import type { EnqueueResult } from '../queue/commentQueue.js';
 import { parseWebhookPayload, type CommentEvent } from './parse.js';
 import { SIGNATURE_HEADER, safeEqual, verifySignature } from './signature.js';
 
@@ -13,7 +14,7 @@ export interface EnqueueContext {
  * Sumidero de eventos: solo debe ENCOLAR (escritura rápida y síncrona), nunca procesar.
  * Si lanza una excepción respondemos 500 para que Meta reintente la entrega.
  */
-export type EnqueueFn = (events: CommentEvent[], ctx: EnqueueContext) => void;
+export type EnqueueFn = (events: CommentEvent[], ctx: EnqueueContext) => EnqueueResult | void;
 
 export interface WebhookOptions {
   appSecret: string;
@@ -65,10 +66,11 @@ export const webhookRoutes: FastifyPluginAsync<WebhookOptions> = async (app, opt
     }
 
     const { comments, ignored } = parseWebhookPayload(payload);
-    opts.enqueue(comments, { receivedAt: new Date(), rawBody: raw });
+    const result = opts.enqueue(comments, { receivedAt: new Date(), rawBody: raw });
     req.log.info(
       {
         comments: comments.map((c) => c.commentId),
+        duplicates: result && result.duplicates.length ? result.duplicates : undefined,
         ignored: ignored.length ? ignored : undefined,
       },
       'webhook recibido y encolado',

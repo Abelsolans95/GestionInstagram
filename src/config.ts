@@ -12,6 +12,8 @@ const envSchema = z.object({
   PORT: z.coerce.number().int().positive().default(3000),
   HOST: z.string().default('0.0.0.0'),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
+  // En Railway: volumen montado en /data y DATABASE_PATH=/data/app.db
+  DATABASE_PATH: z.string().trim().min(1).default('./data/app.db'),
 
   // Webhook de Meta
   IG_APP_SECRET: nonEmpty,
@@ -25,6 +27,7 @@ export interface AppConfig {
   port: number;
   host: string;
   logLevel: Env['LOG_LEVEL'];
+  databasePath: string;
   webhook: {
     appSecret: string;
     verifyToken: string;
@@ -45,6 +48,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     port: e.PORT,
     host: e.HOST,
     logLevel: e.LOG_LEVEL,
+    databasePath: e.DATABASE_PATH,
     webhook: {
       appSecret: e.IG_APP_SECRET,
       verifyToken: e.WEBHOOK_VERIFY_TOKEN,
