@@ -47,6 +47,8 @@ export interface ClaudeOptions {
   /** Reintentos del SDK (429, 5xx, red) con backoff: 2 reintentos = 3 intentos en total. */
   maxRetries?: number;
   timeoutMs?: number;
+  /** Por defecto el del SDK (o ANTHROPIC_BASE_URL si está definido). */
+  baseURL?: string;
 }
 
 export function createClaudeClient(opts: ClaudeOptions): LlmClient {
@@ -54,6 +56,7 @@ export function createClaudeClient(opts: ClaudeOptions): LlmClient {
     apiKey: opts.apiKey,
     maxRetries: opts.maxRetries ?? 2,
     timeout: opts.timeoutMs ?? 60_000,
+    ...(opts.baseURL ? { baseURL: opts.baseURL } : {}),
   });
   const model = opts.model ?? DEFAULT_CLAUDE_MODEL;
   const effort = opts.effort ?? 'low';

@@ -13,7 +13,12 @@ const apiKey = process.env.ANTHROPIC_API_KEY;
 const QUESTION = '¿qué oficio quieres?';
 
 describe.skipIf(!apiKey)('extracción con Claude real (pregunta: "¿qué oficio quieres?")', () => {
-  const llm = createClaudeClient({ apiKey: apiKey ?? '', model: process.env.CLAUDE_MODEL ?? 'claude-haiku-5-5' });
+  // baseURL explícito: que el test vaya siempre a la API de Anthropic con TU clave.
+  const llm = createClaudeClient({
+    apiKey: apiKey ?? '',
+    model: process.env.CLAUDE_MODEL ?? 'claude-haiku-5-5',
+    baseURL: process.env.LIVE_TEST_BASE_URL ?? 'https://api.anthropic.com',
+  });
   const prompts = createPromptStore();
   const run = (username: string, text: string, existingLabels: string[] = []) =>
     extractFromComment(llm, prompts, { question: QUESTION, caption: null, existingLabels, username, text });
