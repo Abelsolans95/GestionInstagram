@@ -28,6 +28,7 @@ async function main(): Promise<void> {
       verifyToken: config.webhook.verifyToken,
       enqueue: (events, ctx) => queue.enqueueWebhookEvents(events, ctx.receivedAt, ctx.rawBody),
     },
+    reports: { db, reportToken: config.reportToken },
   });
 
   const prune = () => {

@@ -15,7 +15,7 @@ Stack: Node.js 22 + TypeScript (Fastify), pnpm, SQLite. Despliegue en Railway.
 | a | Webhook: verificación de Meta + firma `X-Hub-Signature-256` + simulador | ✅ |
 | b | Cola persistente + idempotencia + worker | ✅ |
 | c | Extracción + tablas + pregunta del vídeo + importación | ✅ |
-| d | Informes `/report/:mediaId` y `/participants` | pendiente |
+| d | Informes `/report/:mediaId` y `/participants` | ✅ |
 | e | Filtros + respuestas con Claude + modo revisión | pendiente |
 | f | Publicación + delay + tope por hora + refresco de token | pendiente |
 
@@ -49,7 +49,15 @@ pnpm simulate:webhook --text "hola" --url https://xxxx.ngrok-free.app/webhook/in
 |---|---|---|
 | GET | `/webhook/instagram` | Handshake de Meta: si `hub.mode=subscribe` y `hub.verify_token` coincide con `WEBHOOK_VERIFY_TOKEN`, devuelve `hub.challenge`; si no, 403 |
 | POST | `/webhook/instagram` | Valida la firma `X-Hub-Signature-256` (HMAC-SHA256 del cuerpo crudo con `IG_APP_SECRET`), encola y responde 200 al instante. Firma inválida → 401 |
+| GET | `/report` | Índice de vídeos con su pregunta |
+| GET | `/report/:mediaId` | Pregunta + respuestas agrupadas por etiqueta (`herrero (3): @a, @b, @c`) y, al final, los que no responden. `?format=csv` |
+| GET | `/participants` | Ficha por seguidor: @usuario, personaje y respuesta en cada vídeo. `?format=csv` |
 | GET | `/health` | Comprobación de vida para Railway |
+
+Los informes y la página de revisión piden `REPORT_TOKEN`: añade `?token=TU_REPORT_TOKEN` a la URL
+(guárdala en favoritos del móvil) o envía `Authorization: Bearer TU_REPORT_TOKEN`. Ejemplo:
+`https://TU_DOMINIO/report?token=...`. En los informes, `@usuario*` = respondió varias veces y
+cuenta la última.
 
 ## Configurar Meta (Instagram API con Instagram Login)
 
