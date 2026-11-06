@@ -10,6 +10,8 @@ Servicio que, con la API oficial de Meta (Instagram API con Instagram Login) y C
 Stack: Node.js 22 + TypeScript (Fastify), pnpm, SQLite (`better-sqlite3`), Claude Haiku
 (`claude-haiku-5-5`), Graph API de Instagram `v27.0`. Despliegue en Railway con Docker.
 
+> 👉 **Para ponerlo en marcha, sigue [`instrucciones.md`](instrucciones.md)** (paso a paso).
+
 ## Cómo funciona
 
 ```
