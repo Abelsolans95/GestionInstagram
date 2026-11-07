@@ -68,10 +68,13 @@ export function createReplyStep(deps: ReplyStepDeps): ReplyStep {
       return skip('thread_limit', `ya hay ${already} respuestas automáticas a @${row.username} en este hilo en 24 h`);
     }
 
-    // ¿Es el último vídeo? Solo se vuelve a preguntar a Meta si este vídeo podría ser más nuevo
-    // que el cacheado (acabas de publicarlo); si es más antiguo, el caché basta.
+    // ¿Es el último vídeo? Solo importa si el comentario responde a la pregunta del vídeo (label):
+    // entonces, en un vídeo antiguo, se le manda al nuevo día. Si no responde, se contesta normal y
+    // el modelo ni se entera de que hay un día nuevo (así no lo dice por su cuenta).
+    // Solo se vuelve a preguntar a Meta si este vídeo podría ser más nuevo que el cacheado
+    // (acabas de publicarlo); si es más antiguo, el caché basta.
     let newerVideo: { postedAt: number | null } | null | undefined;
-    if (deps.latest) {
+    if (deps.latest && label) {
       let latest = await deps.latest.get();
       const mightBeNewer =
         latest &&
