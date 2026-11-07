@@ -3,6 +3,7 @@ import { getComment } from '../src/db/comments.js';
 import { openDb } from '../src/db/index.js';
 import { createCommentProcessor, type ReplyStep, type ReplyStepContext } from '../src/pipeline/processComment.js';
 import { createCommentQueue } from '../src/queue/commentQueue.js';
+import { redoPending } from '../src/review/reviewService.js';
 import { createCoreServices } from '../src/services.js';
 import type { CommentEvent } from '../src/webhook/parse.js';
 import { createReplyWorker } from '../src/worker/replyWorker.js';
@@ -63,6 +64,18 @@ describe('procesador del worker (extracción → filtros → respuesta)', () => 
     expect(getComment(db, 'solo')).toMatchObject({ status: 'pending_review', answer_label: 'herrero', extract_status: 'done', thread_id: 'solo', parent_checked: 1 });
     expect(replyStep).toHaveBeenCalledTimes(1);
     expect(replyStep.mock.calls[0]![0]).toMatchObject({ threadId: 'solo', parentId: null, label: 'herrero' });
+    expect(meta.posts()).toEqual([]);
+  });
+
+  it('rehacer desde la revisión: vuelve a pasar por extracción y respuesta, sin publicar nada', async () => {
+    const { db, queue, worker, replyStep, meta } = setup();
+    queue.enqueueWebhookEvents([ev('solo')], new Date());
+    await worker.drain();
+    replyStep.mockResolvedValueOnce({ status: 'pending_review', decision: 'reply', patch: { reply_text: '@cesar un herrero hacía falta!! 🔥' } });
+    expect(redoPending(db)).toBe(1);
+    await worker.drain();
+    expect(replyStep).toHaveBeenCalledTimes(2);
+    expect(getComment(db, 'solo')).toMatchObject({ status: 'pending_review', reply_text: '@cesar un herrero hacía falta!! 🔥', answer_label: 'herrero' });
     expect(meta.posts()).toEqual([]);
   });
 

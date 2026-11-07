@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { buildApp } from '../src/app.js';
 import { getComment, insertCommentIfNew, updateComment } from '../src/db/comments.js';
 import { openDb, type DB } from '../src/db/index.js';
-import { approve, countRetryableFailed, editReply, listPending, reject, retryAllFailed, retryFailed, ReviewError } from '../src/review/reviewService.js';
+import { approve, countInQueue, countRetryableFailed, editReply, listPending, redoPending, reject, retryAllFailed, retryFailed, ReviewError } from '../src/review/reviewService.js';
 import { silentLogger } from './helpers/fakes.js';
 
 const TOKEN = 'report-token-0123456789';
@@ -69,6 +69,27 @@ describe('servicio de revisión', () => {
     insertCommentIfNew(db, { commentId: 'i', mediaId: 'm1', parentId: null, parentChecked: true, igUserId: null, username: 'u', text: 't', commentedAt: 1, source: 'import', status: 'imported' });
     updateComment(db, 'i', { status: 'failed' });
     expect(() => retryFailed(db, 'i')).toThrow(/importados/);
+  });
+});
+
+describe('rehacer respuestas pendientes', () => {
+  it('vuelven a la cola sin la respuesta anterior; solo las pendientes', () => {
+    pendingReply('a');
+    pendingReply('b');
+    pendingReply('c');
+    reject(db, 'c');
+    expect(redoPending(db)).toBe(2);
+    expect(getComment(db, 'a')).toMatchObject({ status: 'queued', attempts: 0, reply_text: null, reply_reason: null, reply_target_id: null });
+    expect(getComment(db, 'c')!.status).toBe('rejected');
+    expect(countInQueue(db)).toBe(2);
+  });
+
+  it('una sola, y si no está pendiente se avisa', () => {
+    pendingReply('a');
+    pendingReply('b');
+    expect(redoPending(db, 'a')).toBe(1);
+    expect(getComment(db, 'b')!.status).toBe('pending_review');
+    expect(() => redoPending(db, 'a')).toThrow(ReviewError);
   });
 });
 
@@ -140,6 +161,24 @@ describe('página de revisión para el móvil', () => {
     const res = await form(`/review/retry-failed?token=${TOKEN}`);
     expect(res.statusCode).toBe(303);
     expect(getComment(db, 'f1')!.status).toBe('queued');
+  });
+
+  it('botones para rehacer una o todas, y aviso mientras se generan', async () => {
+    pendingReply('a');
+    pendingReply('b');
+    pendingReply('c');
+    const page = await app.inject({ method: 'GET', url: `/review?token=${TOKEN}` });
+    expect(page.body).toContain(`/review/a/redo?token=${TOKEN}`);
+    expect(page.body).toContain('Rehacer las 3 respuestas con el prompt actual');
+    let res = await form(`/review/a/redo?token=${TOKEN}`, { reply_text: '@pepe 🔥🔥' });
+    expect(res.statusCode).toBe(303);
+    expect(getComment(db, 'a')!.status).toBe('queued');
+    res = await form(`/review/redo-all?token=${TOKEN}`);
+    expect(decodeURIComponent(String(res.headers.location))).toContain('Rehaciendo 2 respuestas');
+    expect([getComment(db, 'b')!.status, getComment(db, 'c')!.status]).toEqual(['queued', 'queued']);
+    const after = await app.inject({ method: 'GET', url: `/review?token=${TOKEN}` });
+    expect(after.body).toContain('Generando 3 respuestas');
+    expect(after.body).not.toContain('/redo-all');
   });
 
   it('rechazar y aprobar todas', async () => {

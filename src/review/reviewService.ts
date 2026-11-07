@@ -65,6 +65,31 @@ export function reject(db: DB, id: string, now = Date.now()): void {
   updateComment(db, id, { status: 'rejected', decision: 'rejected', reason: 'rechazada en revisión' }, now);
 }
 
+/**
+ * Rehacer: devuelve a la cola respuestas pendientes de revisión para que se generen otra vez
+ * (p. ej. tras cambiar el prompt). Se borra la respuesta anterior; el worker repite extracción y
+ * respuesta, y vuelven a 'pending_review' (o se saltan si ahora el modelo no responde).
+ * Sin id: todas las pendientes. Devuelve cuántas.
+ */
+export function redoPending(db: DB, id?: string, now = Date.now()): number {
+  if (id) pending(db, id);
+  return db
+    .prepare(
+      `UPDATE comments
+          SET status = 'queued', attempts = 0, last_error = NULL, decision = NULL, reason = 'rehacer respuesta',
+              reply_text = NULL, reply_reason = NULL, reply_target_id = NULL, publish_at = NULL, updated_at = @now
+        WHERE status = 'pending_review' AND source != 'import' AND (@id IS NULL OR comment_id = @id)`,
+    )
+    .run({ id: id ?? null, now }).changes;
+}
+
+/** Comentarios en cola o procesándose (de webhook o polling): p. ej. respuestas que se están rehaciendo. */
+export function countInQueue(db: DB): number {
+  return (
+    db.prepare("SELECT COUNT(*) AS n FROM comments WHERE status IN ('queued', 'processing') AND source != 'import'").get() as { n: number }
+  ).n;
+}
+
 /** Vuelve a encolar un comentario fallido (nunca uno importado). */
 export function retryFailed(db: DB, id: string, now = Date.now()): void {
   const row = getComment(db, id);

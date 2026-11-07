@@ -38,7 +38,7 @@ export function page(title: string, body: string): string {
   input[type=search] { width: 100%; font-size: 1rem; padding: 10px; border-radius: 10px; border: 1px solid #8884; box-sizing: border-box; }
   textarea { width: 100%; font: inherit; padding: 8px; border-radius: 8px; box-sizing: border-box; }
   button { font: inherit; padding: 8px 14px; border-radius: 8px; border: 0; margin: 6px 6px 0 0; cursor: pointer; }
-  .ok { background: #16a34a; color: #fff; } .ko { background: #dc2626; color: #fff; }
+  .ok { background: #16a34a; color: #fff; } .ko { background: #dc2626; color: #fff; } .redo { background: #2563eb; color: #fff; }
   nav a { margin-right: 12px; }
 </style>
 </head><body>
