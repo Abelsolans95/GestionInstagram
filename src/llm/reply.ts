@@ -25,13 +25,28 @@ export interface ReplyInput {
   caption: string | null;
   question: string | null;
   parent: { username: string | null; text: string } | null;
+  /**
+   * Si el comentario es en un vídeo que ya no es el último: datos del más reciente.
+   * null = es el último (o no se sabe).
+   */
+  newerVideo?: { postedAt: number | null } | null;
 }
+
+const fmtDay = (ms: number) =>
+  new Date(ms).toLocaleDateString('es-ES', { timeZone: 'Europe/Madrid', day: 'numeric', month: 'long' });
 
 export function buildReplyUserMessage(i: ReplyInput): string {
   const lines = [
     `Caption del vídeo: ${i.caption ? `"""${i.caption}"""` : '(sin caption)'}`,
     `Pregunta del vídeo: ${i.question ? `"${i.question}"` : '(desconocida)'}`,
   ];
+  if (i.newerVideo) {
+    lines.push(
+      `Este vídeo NO es el último: ya hay un día más nuevo publicado${i.newerVideo.postedAt ? ` (el ${fmtDay(i.newerVideo.postedAt)})` : ''}. Lo que pregunta este vídeo puede estar ya decidido.`,
+    );
+  } else if (i.newerVideo === null) {
+    lines.push('Este vídeo es el último publicado.');
+  }
   if (i.parent) {
     lines.push(
       `Este comentario es una respuesta dentro de un hilo. Comentario padre (de @${i.parent.username ?? 'desconocido'}): """${i.parent.text}"""`,

@@ -32,6 +32,8 @@ export interface MediaView {
   isOwn: boolean | null;
   question: string | null;
   questionSource: QuestionSource | null;
+  /** Fecha de publicación del vídeo (ms). */
+  postedAt?: number | null;
 }
 
 const MEDIA_TTL_MS = 7 * 24 * 60 * 60 * 1000;
@@ -46,6 +48,7 @@ function toView(r: MediaRow): MediaView {
     isOwn: r.is_own === null ? null : r.is_own === 1,
     question: r.question,
     questionSource: r.question_source,
+    postedAt: r.posted_at,
   };
 }
 
@@ -135,6 +138,7 @@ export async function ensureMedia(
     isOwn: upsert.isOwn ?? (row ? row.is_own === 1 : null),
     question: row?.question ?? null,
     questionSource: row?.question_source ?? null,
+    postedAt: upsert.postedAt ?? row?.posted_at ?? null,
   };
 }
 

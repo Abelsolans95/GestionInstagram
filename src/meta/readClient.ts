@@ -14,6 +14,8 @@ export interface ReadClient {
   /** Comentarios principales del vídeo, cada uno con todas sus respuestas (paginando). */
   listThreads(mediaId: string): AsyncGenerator<IgThread>;
   listReplies(commentId: string): AsyncGenerator<IgComment>;
+  /** Tus vídeos más recientes (una sola página, los primeros `limit`). */
+  getRecentMedia(limit?: number): Promise<IgMedia[]>;
 }
 
 const PAGE_LIMIT = 50; // máximo documentado para /comments
@@ -155,5 +157,12 @@ export function createReadClient(opts: ReadClientOptions): ReadClient {
     },
 
     listReplies,
+
+    async getRecentMedia(limit = 5) {
+      const page = await getWithFallback('media', () =>
+        graphGet<IgPage<IgMedia>>(graph, `${igUserId}/media`, { fields: mediaFields(), limit }),
+      );
+      return page.data ?? [];
+    },
   };
 }
