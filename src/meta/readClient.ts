@@ -14,6 +14,8 @@ export interface ReadClient {
   /** Comentarios principales del vídeo, cada uno con todas sus respuestas (paginando). */
   listThreads(mediaId: string): AsyncGenerator<IgThread>;
   listReplies(commentId: string): AsyncGenerator<IgComment>;
+  /** Comentarios principales del vídeo con sus me gusta (like_count), para contar votos. */
+  listCommentLikes(mediaId: string): Promise<IgComment[]>;
 }
 
 const PAGE_LIMIT = 50; // máximo documentado para /comments
@@ -155,5 +157,15 @@ export function createReadClient(opts: ReadClientOptions): ReadClient {
     },
 
     listReplies,
+
+    async listCommentLikes(mediaId) {
+      // Campos fijos (sin los opcionales degradables): si Meta no diera like_count, mejor un error
+      // claro en la página de votos que quitar campos al resto del servicio.
+      const out: IgComment[] = [];
+      for await (const c of paginate<IgComment>(`${mediaId}/comments`, { fields: 'id,text,username,timestamp,like_count', limit: PAGE_LIMIT })) {
+        out.push(c);
+      }
+      return out;
+    },
   };
 }

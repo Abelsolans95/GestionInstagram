@@ -3,6 +3,7 @@ import { buildApp } from './app.js';
 import { loadConfig } from './config.js';
 import { kvGet } from './db/index.js';
 import { createLogger } from './logger.js';
+import { getOwnIdentity } from './pipeline/context.js';
 import { createCommentProcessor } from './pipeline/processComment.js';
 import { errorMessage } from './pipeline/log.js';
 import { createReplyStep } from './pipeline/replyStep.js';
@@ -63,7 +64,11 @@ async function main(): Promise<void> {
       verifyToken: config.webhook.verifyToken,
       enqueue: (events, ctx) => queue.enqueueWebhookEvents(events, ctx.receivedAt, ctx.rawBody),
     },
-    reports: { db, reportToken: config.reportToken },
+    reports: {
+      db,
+      reportToken: config.reportToken,
+      votes: { read: services.read, ownUsername: async () => (await getOwnIdentity(services.analysis)).username },
+    },
     review: { db, reportToken: config.reportToken, settings: config.replies },
     status: {
       reportToken: config.reportToken,

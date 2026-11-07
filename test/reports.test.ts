@@ -7,6 +7,7 @@ import { openDb, type DB } from '../src/db/index.js';
 import { storeAnalysis } from '../src/pipeline/extraction.js';
 import type { MediaView } from '../src/pipeline/context.js';
 import { csvCell } from '../src/reports/csv.js';
+import type { VotesDeps } from '../src/reports/votes.js';
 import { IG_USER_ID, silentLogger } from './helpers/fakes.js';
 
 const TOKEN = 'report-token-0123456789';
@@ -205,5 +206,71 @@ describe('CSV', () => {
     expect(csvCell('=HYPERLINK("x")')).toBe(`"'=HYPERLINK(""x"")"`);
     expect(csvCell('@amigo mira')).toBe("'@amigo mira");
     expect(csvCell(null)).toBe('');
+  });
+});
+
+describe('GET /report/:mediaId/votos (me gusta de tus comentarios)', () => {
+  let vdb: DB;
+  let vapp: FastifyInstance;
+  let fail = false;
+  const read: VotesDeps['read'] = {
+    listCommentLikes: async (mediaId) => {
+      if (fail) throw new Error('Invalid OAuth access token');
+      return mediaId !== 'e1'
+        ? []
+        : [
+            { id: 'k1', text: 'Candidato 1 · @emiliano — dale me gusta', username: 'humanidaddesdecero', like_count: 12 },
+            { id: 'k2', text: 'Candidato 2 · @silver — dale me gusta', username: 'humanidaddesdecero', like_count: 40 },
+            { id: 'k3', text: 'Elíjanme y hacemos carnitas', username: 'carlos', like_count: 99 },
+            { id: 'k4', text: 'O si quieres que mande el Rey CAÍN, vota aquí!!', username: null as never, like_count: 7 },
+          ];
+    },
+  };
+
+  beforeAll(async () => {
+    vdb = openDb(':memory:');
+    upsertMedia(vdb, { mediaId: 'e1', shortcode: 'e1', permalink: null, caption: null, mediaType: 'VIDEO', postedAt: 1, ownerId: IG_USER_ID, ownerUsername: null, isOwn: true });
+    setQuestion(vdb, 'e1', '¿qué hacer con el mamut?', 'manual');
+    // k4 no trae username, pero lo tenemos guardado como comentario tuyo
+    insertCommentIfNew(vdb, { commentId: 'k4', mediaId: 'e1', parentId: null, parentChecked: true, igUserId: null, username: null, text: 'O si quieres…', commentedAt: 1, source: 'webhook', status: 'queued' });
+    updateComment(vdb, 'k4', { status: 'skipped', decision: 'own_comment' });
+    vapp = await buildApp({
+      logger: silentLogger,
+      webhook: { appSecret: 's', verifyToken: 'v', enqueue: () => {} },
+      reports: { db: vdb, reportToken: TOKEN, votes: { read, ownUsername: async () => 'humanidaddesdecero' } },
+    });
+  });
+  afterAll(async () => {
+    await vapp.close();
+  });
+  const vget = (url: string) => vapp.inject({ method: 'GET', url });
+
+  it('ordena tus comentarios por me gusta y dice quién va ganando; los de otros no cuentan', async () => {
+    fail = false;
+    const res = await vget(`/report/e1/votos?token=${TOKEN}`);
+    expect(res.statusCode).toBe(200);
+    const text = strip(res.body);
+    expect(text).toContain('Va ganando: Candidato 2 · @silver — dale me gusta con 40 me gusta');
+    expect(text.indexOf('40 me gusta')).toBeLessThan(text.indexOf('12 me gusta'));
+    expect(text.indexOf('12 me gusta')).toBeLessThan(text.indexOf('7 me gusta'));
+    expect(text).not.toContain('carnitas');
+    expect(res.body).toContain(`/report/e1/votos?token=${TOKEN}`);
+  });
+
+  it('pide el token, 404 si el vídeo no existe y avisa si Meta falla', async () => {
+    expect((await vget('/report/e1/votos')).statusCode).toBe(401);
+    expect((await vget(`/report/nope/votos?token=${TOKEN}`)).statusCode).toBe(404);
+    fail = true;
+    const res = await vget(`/report/e1/votos?token=${TOKEN}`);
+    fail = false;
+    expect(res.statusCode).toBe(502);
+    expect(strip(res.body)).toContain('No se han podido leer los me gusta de Instagram: Invalid OAuth access token');
+  });
+
+  it('sin comentarios tuyos lo explica; sin la función de votos, 404; el informe enlaza los votos', async () => {
+    upsertMedia(vdb, { mediaId: 'e2', shortcode: 'e2', permalink: null, caption: null, mediaType: 'VIDEO', postedAt: 2, ownerId: IG_USER_ID, ownerUsername: null, isOwn: true });
+    expect(strip((await vget(`/report/e2/votos?token=${TOKEN}`)).body)).toContain('No hay comentarios tuyos en este vídeo');
+    expect((await get(`/report/m1/votos?token=${TOKEN}`)).statusCode).toBe(404);
+    expect((await get(`/report/m1?token=${TOKEN}`)).body).toContain(`/report/m1/votos?token=${TOKEN}`);
   });
 });
