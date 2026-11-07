@@ -32,6 +32,7 @@ export function testConfig(overrides: Partial<AppConfig['replies']> = {}): AppCo
       maxPerHour: 60,
       reviewMode: true,
       maxAgeHours: 0,
+      likeComments: false,
       ...overrides,
     },
     reportToken: 'report-token-0123456789',

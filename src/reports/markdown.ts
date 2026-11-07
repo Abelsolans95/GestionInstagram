@@ -1,8 +1,8 @@
 import type { MediaReport } from './queries.js';
 
-/** Escapa lo justo para que Markdown no convierta _ o * en cursivas/negritas. */
+/** Texto en una sola línea, tal cual (sin escapes: el archivo se lee bien también en el Bloc de notas). */
 function md(text: string): string {
-  return text.replace(/([\\`*_[\]#<>|])/g, '\\$1').replace(/\s+/g, ' ').trim();
+  return text.replace(/\s+/g, ' ').trim();
 }
 
 const fmt = (ms: number | null) =>
@@ -13,16 +13,16 @@ export function mediaReportMarkdown(r: MediaReport): string {
   const lines: string[] = [];
   lines.push(`# ${md(r.question ?? '(sin pregunta)')}`, '');
   const meta = [fmt(r.postedAt), `${r.totalPeople} ${r.totalPeople === 1 ? 'persona ha respondido' : 'personas han respondido'}`];
-  if (r.permalink) meta.push(`[ver vídeo](${r.permalink})`);
+  if (r.permalink) meta.push(`vídeo: ${r.permalink}`);
   lines.push(meta.join(' · '), '');
 
   lines.push('## Respuestas', '');
-  if (r.groups.length === 0) lines.push('_Nadie ha respondido todavía a la pregunta._');
+  if (r.groups.length === 0) lines.push('Nadie ha respondido todavía a la pregunta.');
   for (const g of r.groups) {
-    lines.push(`- **${md(g.label)} (${g.count}):** ${g.people.map((p) => `@${md(p.username)}${p.multiple ? '\\*' : ''}`).join(', ')}`);
+    lines.push(`- **${md(g.label)} (${g.count}):** ${g.people.map((p) => `@${md(p.username)}${p.multiple ? '*' : ''}`).join(', ')}`);
   }
   if (r.groups.some((g) => g.people.some((p) => p.multiple))) {
-    lines.push('', '_\\* respondió varias veces; cuenta la última._');
+    lines.push('', '(*) respondió varias veces; cuenta la última.');
   }
 
   if (r.groups.length) {
@@ -37,7 +37,7 @@ export function mediaReportMarkdown(r: MediaReport): string {
   }
 
   lines.push('', `## No responden a la pregunta (${r.nonAnswers.length})`, '');
-  if (r.nonAnswers.length === 0) lines.push('_Ninguno._');
+  if (r.nonAnswers.length === 0) lines.push('Ninguno.');
   for (const n of r.nonAnswers) lines.push(`- @${md(n.username ?? '?')}: ${md(n.text)}`);
   return lines.join('\n').replace(/\n{3,}/g, '\n\n') + '\n';
 }

@@ -45,6 +45,7 @@ async function main(): Promise<void> {
     maxPerHour: config.replies.maxPerHour,
     igUserId: config.meta.igUserId,
     ownUsername: () => kvGet<{ username: string | null }>(db, 'own_identity')?.username ?? null,
+    likeComments: config.replies.likeComments,
   });
 
   // Plan B opcional: leer comentarios recientes si los webhooks no llegan.
@@ -75,6 +76,7 @@ async function main(): Promise<void> {
         meta_login: config.meta.login,
         token: services.tokens.status(),
         polling: config.poll.intervalSec > 0,
+        like_replied_comments: config.replies.likeComments,
       }),
     },
   });

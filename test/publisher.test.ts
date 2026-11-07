@@ -15,7 +15,7 @@ function scheduled(db: DB, id: string, opts: { at?: number; target?: string; tex
   updateComment(db, id, { status: 'scheduled', reply_text: opts.text ?? '@pepe 🔥🔥', reply_target_id: opts.target ?? '17000000000000001', publish_at: opts.at ?? NOW - 1000 });
 }
 
-function setup(opts: { maxPerHour?: number; fetch?: (base: FetchLike) => FetchLike; existingReplies?: { id: string; text: string; username: string }[] } = {}) {
+function setup(opts: { maxPerHour?: number; likeComments?: boolean; fetch?: (base: FetchLike) => FetchLike; existingReplies?: { id: string; text: string; username: string }[] } = {}) {
   const meta = createFakeMeta({
     igUserId: IG_USER_ID,
     username: OWN_USERNAME,
@@ -34,6 +34,7 @@ function setup(opts: { maxPerHour?: number; fetch?: (base: FetchLike) => FetchLi
     maxPerHour: opts.maxPerHour ?? 60,
     igUserId: IG_USER_ID,
     ownUsername: () => OWN_USERNAME,
+    likeComments: opts.likeComments ?? false,
     now: () => now,
   });
   return { db, meta, publisher, advance: (ms: number) => (now += ms) };
@@ -158,5 +159,42 @@ describe('comentarios que ya no existen', () => {
     scheduled(db, 'c1');
     await publisher.tick();
     expect(getComment(db, 'c1')).toMatchObject({ status: 'skipped', decision: 'comment_unavailable' });
+  });
+});
+
+describe('me gusta a los comentarios respondidos', () => {
+  it('apagado por defecto: solo publica la respuesta', async () => {
+    const { db, meta, publisher } = setup();
+    scheduled(db, 'c1');
+    await publisher.tick();
+    expect(meta.posts().map((p) => p.path)).toEqual(['/17000000000000001/replies']);
+  });
+
+  it('activado: tras responder, POST /{IG_USER_ID}/likes {"comment_id"} del comentario del seguidor', async () => {
+    const { db, meta, publisher } = setup({ likeComments: true });
+    scheduled(db, '18000000000000123', { target: '17000000000000001' });
+    await publisher.tick();
+    expect(meta.posts()[1]).toMatchObject({ path: `/${IG_USER_ID}/likes`, body: { comment_id: '18000000000000123' } });
+  });
+
+  it('si Meta lo rechaza por permisos, la respuesta queda publicada y deja de intentarlo', async () => {
+    let likes = 0;
+    const { db, publisher } = setup({
+      likeComments: true,
+      fetch: (base) => async (u, i) => {
+        if (i.method === 'POST' && u.includes('/likes')) {
+          likes++;
+          return new Response('{"error":{"message":"(#10) Application does not have permission for this action","code":10}}', { status: 403 });
+        }
+        return base(u, i);
+      },
+    });
+    scheduled(db, '18000000000000001');
+    scheduled(db, '18000000000000002', { at: NOW - 500 });
+    await publisher.tick();
+    await publisher.tick();
+    expect(getComment(db, '18000000000000001')!.status).toBe('replied');
+    expect(getComment(db, '18000000000000002')!.status).toBe('replied');
+    expect(likes).toBe(1);
   });
 });

@@ -68,6 +68,8 @@ const envSchema = z
     REPLY_DELAY_MAX: z.coerce.number().int().min(0).default(300),
     MAX_REPLIES_PER_HOUR: z.coerce.number().int().min(1).default(60),
     REVIEW_MODE: bool.default(true),
+    /** Dar me gusta a los comentarios que se responden (ver writeClient.likeComment). */
+    LIKE_REPLIED_COMMENTS: bool.default(false),
     /** No responder comentarios más antiguos que esto (horas). Vacío o 0 = responder todos. */
     MAX_REPLY_AGE_HOURS: z.coerce.number().min(0).default(0),
 
@@ -111,6 +113,7 @@ export interface AppConfig {
     maxPerHour: number;
     reviewMode: boolean;
     maxAgeHours: number;
+    likeComments: boolean;
   };
   reportToken: string;
   poll: { intervalSec: number; mediaCount: number };
@@ -149,6 +152,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
       maxPerHour: e.MAX_REPLIES_PER_HOUR,
       reviewMode: e.REVIEW_MODE,
       maxAgeHours: e.MAX_REPLY_AGE_HOURS,
+      likeComments: e.LIKE_REPLIED_COMMENTS,
     },
     reportToken: e.REPORT_TOKEN,
     poll: { intervalSec: e.POLL_INTERVAL_SECONDS, mediaCount: e.POLL_MEDIA_COUNT },

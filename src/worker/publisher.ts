@@ -27,6 +27,8 @@ export interface PublisherOptions {
   maxPerHour: number;
   igUserId: string;
   ownUsername: () => string | null;
+  /** Dar me gusta al comentario al que se responde (LIKE_REPLIED_COMMENTS). */
+  likeComments?: boolean;
   tickMs?: number;
   now?: () => number;
 }
@@ -68,7 +70,9 @@ export function createPublisher(opts: PublisherOptions): Publisher {
   const { db, logger } = opts;
   const now = opts.now ?? Date.now;
   const tickMs = opts.tickMs ?? 10_000;
-  const write: WriteClient = createWriteClient(opts.graph);
+  const write: WriteClient = createWriteClient(opts.graph, opts.igUserId);
+  // Si Meta rechaza los me gusta por permisos o por el tipo de login, se dejan de intentar.
+  let likesDisabled = !opts.likeComments;
   let timer: NodeJS.Timeout | null = null;
   let running: Promise<unknown> | null = null;
   let capLogged = false;
@@ -118,6 +122,28 @@ export function createPublisher(opts: PublisherOptions): Publisher {
     });
   }
 
+  /** Me gusta al comentario del seguidor. Nunca hace fallar la respuesta. */
+  async function likeIfEnabled(row: CommentRow): Promise<void> {
+    if (likesDisabled) return;
+    try {
+      await write.likeComment(row.comment_id);
+      logger.info({ comment_id: row.comment_id, username: row.username }, 'me gusta dado al comentario');
+    } catch (err) {
+      const permission =
+        err instanceof MetaApiError && err.status !== null && err.status < 500 && err.status !== 429 &&
+        (err.code === null || ![4, 17, 32, 613].includes(err.code));
+      if (permission) {
+        likesDisabled = true;
+        logger.error(
+          { err: errorMessage(err) },
+          'Meta no permite dar me gusta con esta configuración; se desactiva hasta reiniciar (según la documentación, necesita Facebook Login y el permiso instagram_manage_engagement)',
+        );
+      } else {
+        logger.warn({ comment_id: row.comment_id, err: errorMessage(err) }, 'no se pudo dar me gusta');
+      }
+    }
+  }
+
   async function publish(row: CommentRow): Promise<number> {
     const started = Date.now();
     const target = row.reply_target_id ?? row.comment_id;
@@ -125,6 +151,7 @@ export function createPublisher(opts: PublisherOptions): Publisher {
       if (!row.reply_text) throw new Error('sin texto de respuesta');
       const res = await write.replyToComment(target, row.reply_text);
       markReplied(row, res.id, started);
+      await likeIfEnabled(row);
       return 1;
     } catch (err) {
       const kind = classify(err);

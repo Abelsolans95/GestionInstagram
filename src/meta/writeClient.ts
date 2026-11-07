@@ -12,10 +12,21 @@ import { graphPost, type GraphContext } from './http.js';
 
 export interface WriteClient {
   replyToComment(commentId: string, message: string): Promise<{ id: string }>;
+  /**
+   * Me gusta a un comentario: POST /{IG_USER_ID}/likes {"comment_id"} (permiso
+   * instagram_manage_engagement). La documentación dice que solo está disponible con la
+   * "Instagram API with Facebook Login": con otros tipos de login Meta puede rechazarlo.
+   */
+  likeComment(commentId: string): Promise<boolean>;
 }
 
-export function createWriteClient(graph: GraphContext): WriteClient {
+export function createWriteClient(graph: GraphContext, igUserId: string): WriteClient {
   return {
+    async likeComment(commentId) {
+      if (!/^\d+$/.test(commentId)) throw new Error(`id de comentario inválido: ${commentId}`);
+      const res = await graphPost<{ success?: boolean }>(graph, `${igUserId}/likes`, { comment_id: commentId });
+      return res.success === true;
+    },
     async replyToComment(commentId, message) {
       if (!/^\d+$/.test(commentId)) throw new Error(`id de comentario inválido: ${commentId}`);
       const res = await graphPost<{ id?: string }>(graph, `${commentId}/replies`, { message });
