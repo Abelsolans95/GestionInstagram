@@ -180,4 +180,17 @@ describe('filtros de respuesta (la extracción se hace igual)', () => {
     });
     expect(out).toMatchObject({ status: 'skipped', decision: 'hidden' });
   });
+
+  it('pasa al modelo la etiqueta de la extracción cuando el comentario responde a la pregunta', async () => {
+    const db = openDb(':memory:');
+    const { llm, calls } = fakeLlm(() => ({ reply: '🔥', reason: 'x' }));
+    const step = createReplyStep({ db, llm, prompts: testPrompts, lists: testLists, logger: silentLogger, settings: { delayMinSec: 1, delayMaxSec: 2, reviewMode: true, maxAgeHours: 0 } });
+    await step({
+      row: { comment_id: 'k', username: 'pepe', text: 'Puedo cazar?', commented_at: Date.now(), source: 'webhook', status: 'processing' } as never,
+      media: { mediaId: 'm1', caption: null, permalink: null, shortcode: null, isOwn: true, question: '¿qué sabes hacer: cazar, pescar, vigilar...?', questionSource: 'manual' },
+      threadId: 'k', parentId: null, parent: null, hidden: false, label: 'cazador', extractError: null,
+    });
+    expect(calls).toHaveLength(1);
+    expect(calls[0]!.user).toContain('responde a la pregunta del vídeo (respuesta: "cazador")');
+  });
 });
