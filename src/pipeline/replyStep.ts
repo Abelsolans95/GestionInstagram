@@ -5,7 +5,6 @@ import { generateReply } from '../llm/reply.js';
 import type { Logger } from '../logger.js';
 import type { ProcessOutcome } from '../worker/replyWorker.js';
 import { autoRepliesInThread, findBlockedTerm, hasLink, type FilterLists } from './filters.js';
-import type { LatestVideoTracker } from './latestVideo.js';
 import type { ReplyStep } from './processComment.js';
 
 export interface ReplySettings {
@@ -23,8 +22,6 @@ export interface ReplyStepDeps {
   lists: FilterLists;
   logger: Logger;
   settings: ReplySettings;
-  /** Para avisar al modelo cuando el comentario es en un vídeo antiguo. */
-  latest?: LatestVideoTracker;
   now?: () => number;
   random?: () => number;
 }
@@ -68,27 +65,6 @@ export function createReplyStep(deps: ReplyStepDeps): ReplyStep {
       return skip('thread_limit', `ya hay ${already} respuestas automáticas a @${row.username} en este hilo en 24 h`);
     }
 
-    // ¿Es el último vídeo? Solo importa si el comentario responde a la pregunta del vídeo (label):
-    // entonces, en un vídeo antiguo, se le manda al nuevo día. Si no responde, se contesta normal y
-    // el modelo ni se entera de que hay un día nuevo (así no lo dice por su cuenta).
-    // Solo se vuelve a preguntar a Meta si este vídeo podría ser más nuevo que el cacheado
-    // (acabas de publicarlo); si es más antiguo, el caché basta.
-    let newerVideo: { postedAt: number | null } | null | undefined;
-    if (deps.latest && label) {
-      let latest = await deps.latest.get();
-      const mightBeNewer =
-        latest &&
-        latest.mediaId !== media.mediaId &&
-        (!media.postedAt || !latest.postedAt || media.postedAt > latest.postedAt);
-      if (mightBeNewer) latest = await deps.latest.get({ force: true });
-      if (latest) {
-        const isOlder =
-          latest.mediaId !== media.mediaId &&
-          !(media.postedAt && latest.postedAt && media.postedAt >= latest.postedAt);
-        newerVideo = isOlder ? { postedAt: latest.postedAt } : null;
-      }
-    }
-
     let v;
     try {
       v = await generateReply(deps.llm, deps.prompts, {
@@ -97,7 +73,6 @@ export function createReplyStep(deps: ReplyStepDeps): ReplyStep {
         caption: media.caption,
         question: media.question,
         parent,
-        newerVideo,
         answerLabel: label,
       });
     } catch (err) {

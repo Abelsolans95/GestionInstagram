@@ -305,7 +305,6 @@ y `error`. Los tokens nunca aparecen en los logs. Los payloads crudos de los web
 | `REVIEW_MODE` | true | |
 | `REPORT_TOKEN` | — | 16+ caracteres aleatorios |
 | `MAX_REPLY_AGE_HOURS` | 0 | 0 = responder todos |
-| `IGNORED_REELS` | — | Reels que no cuentan como "día nuevo" (p. ej. uno de prueba): URLs o IDs separados por comas. Si no, los comentarios del último día se responden como de un vídeo antiguo ("ve a ver el nuevo día") |
 | `LIKE_REPLIED_COMMENTS` | false | Me gusta al comentario respondido (`POST /{IG_USER_ID}/likes`). Según Meta solo con *Facebook Login* y el permiso `instagram_manage_engagement`; si lo rechaza, se desactiva solo |
 | `POLL_INTERVAL_SECONDS` / `POLL_MEDIA_COUNT` | 0 / 5 | Plan B; 0 = apagado |
 | `CLAUDE_MODEL` | `claude-haiku-5-5` | |

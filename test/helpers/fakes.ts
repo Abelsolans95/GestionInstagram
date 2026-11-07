@@ -37,7 +37,6 @@ export function testConfig(overrides: Partial<AppConfig['replies']> = {}): AppCo
     },
     reportToken: 'report-token-0123456789',
     poll: { intervalSec: 0, mediaCount: 5 },
-    ignoredReels: [],
   };
 }
 

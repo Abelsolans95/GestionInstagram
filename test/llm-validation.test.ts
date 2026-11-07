@@ -57,6 +57,7 @@ describe('validación de la respuesta del modelo', () => {
     expect(m).toContain('"¿qué oficio quieres?"');
     expect(m).toContain('Comentario padre (de @ana): """quién hace pan?"""');
     expect(m).toContain(`Tu respuesta debe empezar por @${U}`);
+    expect(m).not.toMatch(/último|día más nuevo|nuevo día/);
   });
 
   it('si la extracción dice que responde a la pregunta, el mensaje lo indica', () => {
