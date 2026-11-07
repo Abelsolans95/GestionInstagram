@@ -66,7 +66,7 @@ describe('seguimiento del último vídeo', () => {
 });
 
 describe('paso de respuesta con vídeos antiguos', () => {
-  function run(media: Partial<MediaView>, latest: { mediaId: string; postedAt: number }) {
+  function run(media: Partial<MediaView>, latest: { mediaId: string; postedAt: number }, label: string | null = 'marcos') {
     const { llm, calls } = fakeLlm(() => ({ reply: 've a ver el nuevo día!! 👀', reason: 'vídeo antiguo' }));
     let gets = 0;
     const tracker: LatestVideoTracker = { get: async () => (gets++, { ...latest, permalink: null }) };
@@ -77,7 +77,7 @@ describe('paso de respuesta con vídeos antiguos', () => {
     const ctx = {
       row: { comment_id: 'c', username: 'pepe', text: 'que se llame Marcos', commented_at: NOW, source: 'webhook', status: 'processing' } as never,
       media: { mediaId: 'm1', caption: null, permalink: null, shortcode: null, isOwn: true, question: null, questionSource: null, ...media } as MediaView,
-      threadId: 'c', parentId: null, parent: null, hidden: false, label: null, extractError: null,
+      threadId: 'c', parentId: null, parent: null, hidden: false, label, extractError: null,
     };
     return { out: step(ctx), calls, gets: () => gets };
   }
@@ -99,5 +99,12 @@ describe('paso de respuesta con vídeos antiguos', () => {
     const r = run({ mediaId: 'recien', postedAt: NOW - 60_000 }, { mediaId: 'anterior', postedAt: NOW - DAY });
     await r.out;
     expect(r.gets()).toBe(2);
+  });
+
+  it('si el comentario no responde a la pregunta, el modelo no sabe que hay un día nuevo (ni se pregunta a Meta)', async () => {
+    const r = run({ mediaId: 'viejo', postedAt: NOW - 5 * DAY }, { mediaId: 'nuevo', postedAt: NOW - DAY }, null);
+    await r.out;
+    expect(r.calls[0]!.user).not.toMatch(/es el último|día más nuevo/);
+    expect(r.gets()).toBe(0);
   });
 });
