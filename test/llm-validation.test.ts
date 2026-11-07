@@ -10,6 +10,7 @@ describe('validación de la respuesta del modelo', () => {
       ok: true,
       reply: `@${U} genial!! un herrero hacía falta 🔥`,
       reason: 'ok',
+      complaint: false,
     });
   });
 
@@ -28,8 +29,13 @@ describe('validación de la respuesta del modelo', () => {
     expect(ensureMention(`@${U}.otro hola`, U)).toBe(`@${U} hola`);
   });
 
+  it('lee el campo complaint (queja de que no sale); si falta, es false', () => {
+    expect(validateReplyOutput(JSON.stringify({ reply: 'no podemos salir todos!!', reason: 'q', complaint: true }), U)).toMatchObject({ ok: true, complaint: true });
+    expect(validateReplyOutput(out('🔥'), U)).toMatchObject({ ok: true, complaint: false });
+  });
+
   it('reply null → no responder (con el motivo)', () => {
-    expect(validateReplyOutput(out(null, 'insulto'), U)).toEqual({ ok: true, reply: null, reason: 'insulto' });
+    expect(validateReplyOutput(out(null, 'insulto'), U)).toEqual({ ok: true, reply: null, reason: 'insulto', complaint: false });
     expect(validateReplyOutput(out('   '), U)).toMatchObject({ ok: true, reply: null });
     expect(validateReplyOutput(out(`@${U}`), U)).toMatchObject({ ok: true, reply: null });
   });

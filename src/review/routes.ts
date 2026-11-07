@@ -42,7 +42,7 @@ export const reviewRoutes: FastifyPluginAsync<ReviewRouteOptions> = async (app, 
   ${c.answer_label ? `<div class="muted">etiqueta: ${esc(c.answer_label)}${c.character_name ? ` · personaje: ${esc(c.character_name)}` : ''}</div>` : ''}
   <form method="post" action="/review/${esc(c.comment_id)}/approve?token=${t}">
     <textarea name="reply_text" rows="2" maxlength="200">${esc(c.reply_text ?? '')}</textarea>
-    <div class="muted">${esc(c.reply_reason ?? '')}</div>
+    <div class="muted">${c.reply_kind === 'complaint' ? 'Queja de que no sale (solo se le responde una vez) · ' : ''}${esc(c.reply_reason ?? '')}</div>
     <button class="ok" type="submit">Aprobar</button>
     <button class="ko" type="submit" formaction="/review/${esc(c.comment_id)}/reject?token=${t}">Rechazar</button>
     <button class="redo" type="submit" formaction="/review/${esc(c.comment_id)}/redo?token=${t}">Rehacer</button>

@@ -175,3 +175,18 @@ export function sameTextCount(
     .get(username, text, excludeCommentId, now - DAY_MS) as { n: number };
   return row.n;
 }
+
+/**
+ * Respuestas a quejas de "no salgo" que ya tiene esta persona (pendientes, programadas o
+ * publicadas; las rechazadas en revisión no cuentan), en cualquier vídeo.
+ */
+export function complaintRepliesForUser(db: DB, username: string, excludeCommentId: string): number {
+  const row = db
+    .prepare(
+      `SELECT COUNT(*) AS n FROM comments
+       WHERE lower(username) = lower(?) AND reply_kind = 'complaint' AND comment_id != ?
+         AND status IN ('pending_review', 'scheduled', 'publishing', 'replied')`,
+    )
+    .get(username, excludeCommentId) as { n: number };
+  return row.n;
+}

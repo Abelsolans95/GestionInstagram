@@ -5,7 +5,7 @@ import type { PromptStore } from '../llm/prompts.js';
 import { generateReply } from '../llm/reply.js';
 import type { Logger } from '../logger.js';
 import type { ProcessOutcome } from '../worker/replyWorker.js';
-import { autoRepliesInThread, findBlockedTerm, hasLink, type FilterLists } from './filters.js';
+import { autoRepliesInThread, complaintRepliesForUser, findBlockedTerm, hasLink, type FilterLists } from './filters.js';
 import type { ReplyStep } from './processComment.js';
 
 export interface ReplySettings {
@@ -88,11 +88,20 @@ export function createReplyStep(deps: ReplyStepDeps): ReplyStep {
       );
       return skip('invalid_llm_output', `salida descartada: ${v.error}`);
     }
+    // Quejas de que no sale: solo se responde una vez a cada persona.
+    if (v.complaint && complaintRepliesForUser(deps.db, row.username, row.comment_id) > 0) {
+      return skip('complaint_repeat', 'queja de que no sale: ya se le respondió una vez');
+    }
     if (v.reply === null) return skip('llm_null', `el modelo no responde: ${v.reason}`);
 
     // Instagram solo admite respuestas a comentarios principales: en un hilo se publica sobre el padre.
     const target = parentId ?? row.comment_id;
-    const patch = { reply_text: v.reply, reply_reason: v.reason, reply_target_id: target };
+    const patch = {
+      reply_text: v.reply,
+      reply_reason: v.reason,
+      reply_target_id: target,
+      reply_kind: v.complaint ? 'complaint' : null,
+    };
     if (deps.settings.reviewMode) {
       return { status: 'pending_review', decision: 'reply', reason: v.reason, patch };
     }

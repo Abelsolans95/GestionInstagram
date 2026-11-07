@@ -122,4 +122,10 @@ export const MIGRATIONS: readonly string[] = [
    WHERE status = 'failed' AND decision = 'publish_failed'
      AND (last_error LIKE '%does not exist%' OR last_error LIKE '%Unsupported post request%');
   `,
+
+  // 5 — tipo de respuesta (p. ej. 'complaint': queja de que no sale; solo se responde una vez)
+  `
+  ALTER TABLE comments ADD COLUMN reply_kind TEXT;
+  CREATE INDEX comments_user_kind_idx ON comments (username, reply_kind);
+  `,
 ];

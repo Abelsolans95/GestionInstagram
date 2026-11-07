@@ -24,6 +24,9 @@ function replyFor(text: string): unknown {
   if (text.includes('largo')) return { reply: 'x'.repeat(250), reason: 'largo' };
   if (text.includes('roto')) return 'esto no es json';
   if (text.includes('rechazo')) return new LlmRefusalError('general_harms');
+  if (text.includes('nunca salgo') || text.includes('cuándo salgo')) {
+    return { reply: 'no podemos salir todos, somos muchos!! al final sales seguro 🙌', reason: 'queja', complaint: true };
+  }
   return { reply: 'jajaja', reason: 'otro' };
 }
 
@@ -220,5 +223,34 @@ describe('filtros de respuesta (la extracción se hace igual)', () => {
     });
     expect(calls).toHaveLength(1);
     expect(calls[0]!.user).toContain('responde a la pregunta del vídeo (respuesta: "cazador")');
+  });
+});
+
+describe('quejas de que no sale: una sola respuesta por persona', () => {
+  it('la primera queja se responde y queda marcada; las siguientes de esa persona, no', async () => {
+    const { send } = setup();
+    const first = await send('nunca salgo en los vídeos 😭', { parentId: 'T1', fromUsername: 'quejica' });
+    expect(first).toMatchObject({
+      status: 'pending_review',
+      reply_kind: 'complaint',
+      reply_text: '@quejica no podemos salir todos, somos muchos!! al final sales seguro 🙌',
+    });
+    // Otra queja suya, en otro hilo/vídeo: ya no se responde (pero se analiza)
+    expect(await send('y cuándo salgo yo??', { parentId: 'T2', fromUsername: 'quejica' })).toMatchObject({
+      status: 'skipped',
+      decision: 'complaint_repeat',
+      extract_status: 'done',
+    });
+    // Un comentario normal suyo sí se responde
+    expect((await send('Yo quiero broooo🔥🔥🙌', { parentId: 'T3', fromUsername: 'quejica' })).status).toBe('pending_review');
+    // La queja de otra persona, sí
+    expect((await send('nunca salgo jo', { parentId: 'T4', fromUsername: 'otra', fromId: 'ig-otra' })).reply_kind).toBe('complaint');
+  });
+
+  it('si rechazaste en revisión la respuesta a su primera queja, la siguiente sí se responde', async () => {
+    const { send, db } = setup();
+    const first = await send('nunca salgo', { parentId: 'T1', fromUsername: 'pepa' });
+    updateComment(db, first.comment_id, { status: 'rejected' });
+    expect((await send('cuándo salgo???', { parentId: 'T2', fromUsername: 'pepa' })).status).toBe('pending_review');
   });
 });

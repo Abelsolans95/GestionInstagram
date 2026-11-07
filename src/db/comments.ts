@@ -43,6 +43,8 @@ export interface CommentRow {
   replied_at: number | null;
   reply_comment_id: string | null;
   publish_attempts: number;
+  /** 'complaint' = respuesta a una queja de que no sale (solo una por persona). */
+  reply_kind: string | null;
   created_at: number;
   updated_at: number;
 }

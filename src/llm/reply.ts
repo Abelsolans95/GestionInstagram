@@ -10,14 +10,20 @@ export const REPLY_SCHEMA = {
   properties: {
     reply: { type: ['string', 'null'] },
     reason: { type: 'string' },
+    /** true si el comentario es una queja de que no sale en los vídeos. */
+    complaint: { type: 'boolean' },
   },
-  required: ['reply', 'reason'],
+  required: ['reply', 'reason', 'complaint'],
   additionalProperties: false,
 } as const;
 
 export const MAX_REPLY_CHARS = 200;
 
-const ReplyZ = z.object({ reply: z.string().nullable(), reason: z.string() });
+const ReplyZ = z.object({
+  reply: z.string().nullable(),
+  reason: z.string(),
+  complaint: z.boolean().optional().default(false),
+});
 
 export interface ReplyInput {
   username: string;
@@ -71,7 +77,7 @@ export function buildReplyUserMessage(i: ReplyInput): string {
 }
 
 export type ReplyValidation =
-  | { ok: true; reply: string | null; reason: string }
+  | { ok: true; reply: string | null; reason: string; complaint: boolean }
   | { ok: false; error: 'json_invalid' | 'schema_invalid' | 'too_long' | 'contains_link'; raw: string; reason?: string };
 
 const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -120,11 +126,11 @@ export function validateReplyOutput(raw: string, username: string): ReplyValidat
   }
   const parsed = ReplyZ.safeParse(json);
   if (!parsed.success) return { ok: false, error: 'schema_invalid', raw };
-  const { reply, reason } = parsed.data;
-  if (reply === null || reply.trim() === '') return { ok: true, reply: null, reason };
+  const { reply, reason, complaint } = parsed.data;
+  if (reply === null || reply.trim() === '') return { ok: true, reply: null, reason, complaint };
   const n = normalizeReplyText(reply, username);
   if (n.error) return { ok: false, error: n.error, raw, reason };
-  return { ok: true, reply: n.text, reason };
+  return { ok: true, reply: n.text, reason, complaint };
 }
 
 export async function generateReply(
