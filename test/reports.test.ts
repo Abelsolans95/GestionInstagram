@@ -120,6 +120,26 @@ describe('GET /report/:mediaId', () => {
   });
 });
 
+describe('GET /report/:mediaId?format=md', () => {
+  it('descarga lo mismo que la página en Markdown', async () => {
+    const res = await get(`/report/m1?format=md&token=${TOKEN}`);
+    expect(res.headers['content-type']).toContain('text/markdown');
+    expect(res.headers['content-disposition']).toContain('informe-m1.md');
+    const md = res.body;
+    expect(md).toMatch(/^# ¿qué oficio quieres\?/);
+    expect(md).toContain('- **herrero (3):** @a, @b\\*, @c');
+    expect(md).toContain('- **futbolista (1):** @dyland\\_dd04');
+    expect(md.indexOf('herrero (3)')).toBeLessThan(md.indexOf('futbolista (1)'));
+    expect(md).toContain('## No responden a la pregunta (2)');
+    expect(md.indexOf('## No responden')).toBeGreaterThan(md.indexOf('## Detalle'));
+    expect(md).toContain('“el que haga las herramientas”');
+  });
+
+  it('la página enlaza el MD', async () => {
+    expect((await get(`/report/m1?token=${TOKEN}`)).body).toContain(`format=md&token=${TOKEN}`);
+  });
+});
+
 describe('GET /report (índice)', () => {
   it('lista los vídeos con su pregunta y enlaces que conservan el token', async () => {
     const res = await get(`/report?token=${TOKEN}`);

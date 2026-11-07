@@ -87,7 +87,7 @@ export function mediaReportHtml(r: MediaReport, token: string): string {
     r.question ?? 'Informe',
     `${nav(token)}
 <h1>${esc(r.question ?? '(sin pregunta: fíjala con pnpm question set)')}</h1>
-<p class="muted">${fmt(r.postedAt)} · ${plural(r.totalPeople, 'persona ha respondido', 'personas han respondido')}${r.permalink ? ` · <a href="${esc(r.permalink)}" rel="noreferrer">ver vídeo</a>` : ''} · <a href="/report/${esc(r.mediaId)}?format=csv&token=${t}">CSV</a></p>
+<p class="muted">${fmt(r.postedAt)} · ${plural(r.totalPeople, 'persona ha respondido', 'personas han respondido')}${r.permalink ? ` · <a href="${esc(r.permalink)}" rel="noreferrer">ver vídeo</a>` : ''} · <a href="/report/${esc(r.mediaId)}?format=csv&token=${t}">CSV</a> · <a href="/report/${esc(r.mediaId)}?format=md&token=${t}">MD</a></p>
 ${groups}
 ${anyMultiple ? '<p class="muted">* respondió varias veces; cuenta la última.</p>' : ''}
 <h2>No responden a la pregunta (${r.nonAnswers.length})</h2>

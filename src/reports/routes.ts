@@ -3,6 +3,7 @@ import type { DB } from '../db/index.js';
 import { requestToken, requireToken } from './auth.js';
 import { mediaReportCsv, participantsCsv } from './csv.js';
 import { mediaIndexHtml, mediaReportHtml, participantsHtml } from './html.js';
+import { mediaReportMarkdown } from './markdown.js';
 import { buildMediaReport, buildParticipantsReport, listReportMedia } from './queries.js';
 
 export interface ReportOptions {
@@ -25,6 +26,12 @@ export const reportRoutes: FastifyPluginAsync<ReportOptions> = async (app, opts)
         .type('text/csv; charset=utf-8')
         .header('content-disposition', `attachment; filename="informe-${report.mediaId}.csv"`)
         .send(mediaReportCsv(report));
+    }
+    if (req.query.format === 'md') {
+      return reply
+        .type('text/markdown; charset=utf-8')
+        .header('content-disposition', `attachment; filename="informe-${report.mediaId}.md"`)
+        .send(mediaReportMarkdown(report));
     }
     return reply.type('text/html; charset=utf-8').send(mediaReportHtml(report, requestToken(req)!));
   });
