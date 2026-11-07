@@ -269,7 +269,7 @@ envía `Authorization: Bearer TU_REPORT_TOKEN`.
 | Ruta | Qué muestra |
 |---|---|
 | `GET /report` | Índice de vídeos con su pregunta |
-| `GET /report/:mediaId` | La pregunta y las respuestas agrupadas por etiqueta, ordenadas por número de personas (`herrero (3): @a, @b, @c`); al final, los comentarios que no responden. `?format=csv` |
+| `GET /report/:mediaId` | La pregunta y las respuestas agrupadas por etiqueta, ordenadas por número de personas (`herrero (3): @a, @b, @c`); al final, los comentarios que no responden. `?format=csv`, `?format=md`, `?format=conversaciones` (cada hilo con tus respuestas marcadas, en Markdown) |
 | `GET /participants` | Ficha por seguidor: @usuario, nombre de personaje y su respuesta en cada vídeo. `?format=csv` |
 | `GET /review` | Respuestas pendientes de aprobar |
 | `GET /status` | Estado en JSON: comentarios por estado, respuestas en la última hora, token |
