@@ -96,6 +96,18 @@ describe('cliente de lectura', () => {
     expect(meta.posts()).toEqual([]);
   });
 
+  it('lee los me gusta de los comentarios principales paginando, solo con GET', async () => {
+    const threads = {
+      m1: [5, 0, 12].map((likes, i) => ({ comment: { id: `c${i}`, text: `t${i}`, username: `u${i}`, like_count: likes }, replies: [] })),
+    };
+    const meta = createFakeMeta({ igUserId: IG_USER_ID, username: OWN_USERNAME, media, threads, pageSize: 2 });
+    const read = createReadClient({ graph: graphFor(meta.fetch), igUserId: IG_USER_ID });
+    const out = await read.listCommentLikes('m1');
+    expect(out.map((c) => [c.id, c.like_count])).toEqual([['c0', 5], ['c1', 0], ['c2', 12]]);
+    expect(meta.calls.every((c) => c.path === '/m1/comments')).toBe(true);
+    expect(meta.posts()).toEqual([]);
+  });
+
   it('lista todos tus vídeos paginando', async () => {
     const many = Array.from({ length: 5 }, (_, i) => ({ ...media[0]!, id: `m${i}` }));
     const meta = createFakeMeta({ igUserId: IG_USER_ID, username: OWN_USERNAME, media: many, threads: {}, pageSize: 2 });

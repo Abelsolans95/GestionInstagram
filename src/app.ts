@@ -4,6 +4,7 @@ import type { Logger } from './logger.js';
 import type { ReplySettings } from './pipeline/replyStep.js';
 import { requireToken } from './reports/auth.js';
 import { reportRoutes } from './reports/routes.js';
+import type { VotesDeps } from './reports/votes.js';
 import { reviewRoutes } from './review/routes.js';
 import { webhookRoutes, type EnqueueFn } from './webhook/routes.js';
 
@@ -15,7 +16,7 @@ export interface AppDeps {
     enqueue: EnqueueFn;
   };
   /** Informes protegidos con REPORT_TOKEN (opcional para tests del webhook). */
-  reports?: { db: DB; reportToken: string };
+  reports?: { db: DB; reportToken: string; votes?: VotesDeps };
   /** Página de revisión (mismo token que los informes). */
   review?: {
     db: DB;

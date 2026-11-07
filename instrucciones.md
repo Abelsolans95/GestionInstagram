@@ -256,6 +256,9 @@ Algunas tareas se hacen con comandos dentro del servidor de Railway.
 
 - **Cambiar cómo respondes**: edita `prompts/reply.md` en GitHub (botón del lápiz) y guarda.
   Railway redespliega solo.
+- **Votaciones con me gusta**: publica en el vídeo un comentario por candidato u opción y pide que
+  voten dándole me gusta. En el informe del vídeo, el enlace **votos (me gusta)** los cuenta en ese
+  momento y dice quién va ganando (pulsa *Actualizar* para volver a contar).
 - **Palabras que no quieres responder**: `config/blocked.txt`.
 - **Frases de spam**: `config/spam.txt`.
 - **Token**: con el login unificado no caduca por defecto (lo verás en la vista previa de la

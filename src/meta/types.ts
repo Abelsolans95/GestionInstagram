@@ -26,6 +26,8 @@ export interface IgComment {
   parent_id?: string;
   hidden?: boolean;
   media?: { id: string };
+  /** Me gusta del comentario (solo se pide al contar votos). */
+  like_count?: number;
   replies?: IgPage<IgComment>;
 }
 

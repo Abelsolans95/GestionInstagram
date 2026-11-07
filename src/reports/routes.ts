@@ -6,10 +6,13 @@ import { mediaReportCsv, participantsCsv } from './csv.js';
 import { mediaIndexHtml, mediaReportHtml, participantsHtml } from './html.js';
 import { mediaReportMarkdown } from './markdown.js';
 import { buildMediaReport, buildParticipantsReport, listReportMedia } from './queries.js';
+import { buildVotes, votesErrorHtml, votesHtml, type VotesDeps } from './votes.js';
 
 export interface ReportOptions {
   db: DB;
   reportToken: string;
+  /** Para contar votos con me gusta (lee de Meta). Sin esto, /report/:mediaId/votos da 404. */
+  votes?: VotesDeps;
 }
 
 export const reportRoutes: FastifyPluginAsync<ReportOptions> = async (app, opts) => {
@@ -43,6 +46,19 @@ export const reportRoutes: FastifyPluginAsync<ReportOptions> = async (app, opts)
         .send(mediaReportMarkdown(report));
     }
     return reply.type('text/html; charset=utf-8').send(mediaReportHtml(report, requestToken(req)!));
+  });
+
+  app.get<{ Params: { mediaId: string } }>('/report/:mediaId/votos', async (req, reply) => {
+    const token = requestToken(req)!;
+    if (!opts.votes) return reply.code(404).type('text/plain').send('Votos no disponibles');
+    try {
+      const votes = await buildVotes(opts.db, opts.votes, req.params.mediaId);
+      if (!votes) return reply.code(404).type('text/plain').send('Vídeo no encontrado');
+      return reply.type('text/html; charset=utf-8').send(votesHtml(votes, token));
+    } catch (err) {
+      req.log.warn({ media_id: req.params.mediaId, err: (err as Error).message }, 'no se pudieron leer los me gusta');
+      return reply.code(502).type('text/html; charset=utf-8').send(votesErrorHtml(req.params.mediaId, token, (err as Error).message));
+    }
   });
 
   app.get<{ Querystring: { format?: string } }>('/participants', async (req, reply) => {

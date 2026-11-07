@@ -270,6 +270,7 @@ envía `Authorization: Bearer TU_REPORT_TOKEN`.
 |---|---|
 | `GET /report` | Índice de vídeos con su pregunta |
 | `GET /report/:mediaId` | La pregunta y las respuestas agrupadas por etiqueta, ordenadas por número de personas (`herrero (3): @a, @b, @c`); al final, los comentarios que no responden. `?format=csv`, `?format=md`, `?format=conversaciones` (cada hilo con tus respuestas marcadas, en Markdown) |
+| `GET /report/:mediaId/votos` | Votaciones con me gusta: lee de Meta en ese momento los me gusta (`like_count`) de tus comentarios principales del vídeo (uno por candidato u opción), los ordena y dice quién va ganando |
 | `GET /participants` | Ficha por seguidor: @usuario, nombre de personaje y su respuesta en cada vídeo. `?format=csv` |
 | `GET /review` | Respuestas pendientes de aprobar |
 | `GET /status` | Estado en JSON: comentarios por estado, respuestas en la última hora, token |
