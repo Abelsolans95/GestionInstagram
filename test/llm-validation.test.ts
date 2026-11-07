@@ -60,6 +60,17 @@ describe('validación de la respuesta del modelo', () => {
     expect(m).not.toMatch(/último|día más nuevo|nuevo día/);
   });
 
+  it('le pasa tus últimas respuestas en el vídeo sin la mención, para que no se repita', () => {
+    const base = { username: U, text: 'yo', caption: null, question: null, parent: null };
+    const m = buildReplyUserMessage({ ...base, recentReplies: ['@ana genial!!', '@luis   otro   pescador!!!', '@x '] });
+    expect(m).toContain('Mis últimas respuestas en este vídeo');
+    expect(m).toContain('\n- genial!!\n- otro pescador!!!\n');
+    expect(m).not.toContain('@ana');
+    expect(m.indexOf('Mis últimas respuestas')).toBeLessThan(m.indexOf(`Comentario de @${U}`));
+    expect(buildReplyUserMessage({ ...base, recentReplies: [] })).not.toContain('Mis últimas respuestas');
+    expect(buildReplyUserMessage(base)).not.toContain('Mis últimas respuestas');
+  });
+
   it('si la extracción dice que responde a la pregunta, el mensaje lo indica', () => {
     const base = { username: U, text: 'Puedo cazar?', caption: null, question: '¿qué sabes hacer: cazar, pescar, vigilar...?', parent: null };
     expect(buildReplyUserMessage({ ...base, answerLabel: 'cazador' })).toContain('responde a la pregunta del vídeo (respuesta: "cazador")');

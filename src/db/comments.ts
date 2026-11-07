@@ -103,6 +103,28 @@ export function updateComment(db: DB, commentId: string, patch: Patch, now = Dat
   });
 }
 
+/**
+ * Tus últimas respuestas en un vídeo, de la más reciente a la más antigua: las generadas (pendientes,
+ * programadas o publicadas) y las que escribiste a mano en un hilo. Se pasan al modelo para que no
+ * se repita. Las automáticas ya publicadas no salen dos veces (se excluye su comentario propio).
+ */
+export function recentRepliesInMedia(db: DB, mediaId: string, excludeCommentId: string, limit = 12): string[] {
+  const rows = db
+    .prepare(
+      `SELECT t FROM (
+         SELECT reply_text AS t, COALESCE(replied_at, updated_at) AS at FROM comments
+          WHERE media_id = @mediaId AND comment_id != @exclude AND reply_text IS NOT NULL
+            AND status IN ('pending_review', 'scheduled', 'publishing', 'replied')
+         UNION ALL
+         SELECT text AS t, commented_at AS at FROM comments
+          WHERE media_id = @mediaId AND decision = 'own_comment' AND parent_id IS NOT NULL AND text != ''
+            AND comment_id NOT IN (SELECT reply_comment_id FROM comments WHERE reply_comment_id IS NOT NULL)
+       ) ORDER BY at DESC LIMIT @limit`,
+    )
+    .all({ mediaId, exclude: excludeCommentId, limit }) as { t: string }[];
+  return rows.map((r) => r.t);
+}
+
 export function countByStatus(db: DB): Record<string, number> {
   const rows = db.prepare('SELECT status, COUNT(*) AS n FROM comments GROUP BY status').all() as {
     status: string;
