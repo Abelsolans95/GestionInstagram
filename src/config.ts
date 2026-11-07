@@ -6,6 +6,14 @@ import { z } from 'zod';
  */
 const nonEmpty = z.string().trim().min(1);
 
+/**
+ * Secretos y tokens: sin espacios ni saltos de línea dentro. Si hay uno, casi siempre es que al
+ * pegar en el Raw Editor de Railway se han juntado dos variables en una.
+ */
+const secret = nonEmpty.refine((v) => !/\s/.test(v), {
+  message: 'contiene espacios o saltos de línea: ¿se han juntado dos variables al pegarlas? Déjala solo con su valor',
+});
+
 const bool = z
   .string()
   .trim()
@@ -28,10 +36,10 @@ const envSchema = z
 
     // Meta / Instagram (Instagram API con Instagram Login)
     IG_APP_ID: z.string().trim().optional(),
-    IG_APP_SECRET: nonEmpty,
-    IG_ACCESS_TOKEN: nonEmpty,
+    IG_APP_SECRET: secret,
+    IG_ACCESS_TOKEN: secret,
     IG_USER_ID: z.string().trim().regex(/^\d+$/, 'debe ser numérico (user_id de GET /me)'),
-    WEBHOOK_VERIFY_TOKEN: nonEmpty,
+    WEBHOOK_VERIFY_TOKEN: secret,
     META_API_VERSION: z.string().trim().regex(/^v\d+\.\d+$/, 'formato vNN.N').default('v27.0'),
     /**
      * Cómo está configurada la app de Meta:
@@ -43,7 +51,7 @@ const envSchema = z
     META_GRAPH_URL: z.string().trim().url().optional(),
 
     // Claude
-    ANTHROPIC_API_KEY: nonEmpty,
+    ANTHROPIC_API_KEY: secret,
     CLAUDE_MODEL: nonEmpty.default('claude-haiku-5-5'),
 
     // Respuestas
@@ -55,7 +63,7 @@ const envSchema = z
     MAX_REPLY_AGE_HOURS: z.coerce.number().min(0).default(0),
 
     // Informes y página de revisión
-    REPORT_TOKEN: z.string().trim().min(16, 'usa un token largo (16+ caracteres)'),
+    REPORT_TOKEN: secret.refine((v) => v.length >= 16, { message: 'usa un token largo (16+ caracteres)' }),
 
     // Plan B: leer comentarios recientes periódicamente si los webhooks no llegan. 0 = apagado.
     POLL_INTERVAL_SECONDS: z.coerce.number().int().min(0).default(0),

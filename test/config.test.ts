@@ -35,4 +35,9 @@ describe('configuración', () => {
     expect(() => loadConfig({ ...base, REPLY_DELAY_MIN: '300', REPLY_DELAY_MAX: '60' })).toThrow(/REPLY_DELAY_MAX/);
     expect(() => loadConfig({ ...base, REPORT_TOKEN: 'corto' })).toThrow(/REPORT_TOKEN/);
   });
+
+  it('detecta dos variables pegadas juntas (salto de línea dentro de un token)', () => {
+    expect(() => loadConfig({ ...base, IG_ACCESS_TOKEN: 'EAAabc\nIG_USER_ID=1784' })).toThrow(/IG_ACCESS_TOKEN[\s\S]*juntado/);
+    expect(() => loadConfig({ ...base, ANTHROPIC_API_KEY: 'sk-ant 123' })).toThrow(/ANTHROPIC_API_KEY/);
+  });
 });

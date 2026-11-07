@@ -122,3 +122,21 @@ describe('login unificado vs login de Instagram', () => {
     expect(meta.calls[0]).toMatchObject({ path: '/me', params: { fields: 'user_id,username' } });
   });
 });
+
+describe('los tokens nunca acaban en los mensajes de error', () => {
+  it('quita el token aunque Meta lo repita en su mensaje ("Malformed access token …")', async () => {
+    const token = 'EAAhz4exampleTOKEN1234567890abcdefXYZ';
+    const f: FetchLike = async (u) => {
+      const t = new URL(u).searchParams.get('access_token');
+      return new Response(JSON.stringify({ error: { message: `Malformed access token ${t}`, code: 190 } }), { status: 400 });
+    };
+    const err = (await graphGet({ ...graphFor(f), getAccessToken: () => `${token}\nIG_USER_ID=1784` }, 'me').catch((e: unknown) => e)) as Error;
+    expect(err.message).toContain('Malformed access token');
+    expect(err.message).not.toContain('EAAhz4');
+  });
+
+  it('redacta también tokens con aspecto de token de Meta o de Instagram', async () => {
+    const { redactSecrets } = await import('../src/meta/http.js');
+    expect(redactSecrets('x EAABsbCS1iHgBAZBexampletoken1234567 y IGAAexampletoken1234567890abc z')).toBe('x [REDACTED] y [REDACTED] z');
+  });
+});

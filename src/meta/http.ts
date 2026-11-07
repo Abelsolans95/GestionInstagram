@@ -64,7 +64,22 @@ function buildUrl(ctx: GraphContext, path: string, params: Params, versioned: bo
   return url.toString();
 }
 
-async function parseError(res: Response): Promise<MetaApiError> {
+// Tokens de Meta (Facebook/usuario del sistema: EAA…, Instagram: IGAA… / IGQ…).
+const TOKEN_LIKE = /\b(?:EAA|IGAA|IGQ)[A-Za-z0-9_-]{20,}/g;
+
+/**
+ * Quita tokens de un texto. Meta repite el token en algunos mensajes de error
+ * (p. ej. "Malformed access token EAA…") y esos mensajes acaban en los logs.
+ */
+export function redactSecrets(text: string, secrets: Array<string | undefined> = []): string {
+  let out = text;
+  for (const s of secrets) {
+    if (s && s.length >= 8) out = out.split(s).join('[REDACTED]');
+  }
+  return out.replace(TOKEN_LIKE, '[REDACTED]');
+}
+
+async function parseError(res: Response, secrets: string[]): Promise<MetaApiError> {
   let body: unknown;
   try {
     body = await res.json();
@@ -74,7 +89,7 @@ async function parseError(res: Response): Promise<MetaApiError> {
   const e = (body as { error?: Record<string, unknown> } | undefined)?.error;
   if (e && typeof e === 'object') {
     return new MetaApiError(
-      `Meta API ${res.status}: ${String(e.message ?? 'error')}`,
+      `Meta API ${res.status}: ${redactSecrets(String(e.message ?? 'error'), secrets)}`,
       res.status,
       typeof e.code === 'number' ? e.code : null,
       typeof e.error_subcode === 'number' ? e.error_subcode : null,
@@ -104,7 +119,15 @@ async function send(ctx: GraphContext, method: 'GET' | 'POST', url: string, body
   } finally {
     clearTimeout(timer);
   }
-  if (!res.ok) throw await parseError(res);
+  if (!res.ok) {
+    let token: string | undefined;
+    try {
+      token = new URL(url).searchParams.get('access_token') ?? undefined;
+    } catch {
+      token = undefined;
+    }
+    throw await parseError(res, token ? [token, ...token.split(/\s+/)] : []);
+  }
   return res.json();
 }
 
