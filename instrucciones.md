@@ -238,6 +238,8 @@ Algunas tareas se hacen con comandos dentro del servidor de Railway.
   - **Aprobar**: se publica en 1–5 min (con el texto editado, si lo has cambiado).
   - **Rechazar**: no se publica.
   - **Aprobar todas**: si todas te valen.
+  - **Rehacer**: vuelve a generar la respuesta con el prompt actual (p. ej. tras cambiarlo); en unos
+    segundos aparece otra vez para revisarla. El botón azul de arriba rehace todas las pendientes.
 - [ ] **10.2 Ve apuntando** las respuestas que no te gusten. Con eso ajustamos `prompts/reply.md`.
 
 ---

@@ -3,7 +3,17 @@ import type { DB } from '../db/index.js';
 import { requestToken, requireToken } from '../reports/auth.js';
 import { esc, nav, page } from '../reports/html.js';
 import type { ReplySettings } from '../pipeline/replyStep.js';
-import { approve, countRetryableFailed, listPending, listRetryableFailed, reject, retryAllFailed, ReviewError } from './reviewService.js';
+import {
+  approve,
+  countInQueue,
+  countRetryableFailed,
+  listPending,
+  listRetryableFailed,
+  redoPending,
+  reject,
+  retryAllFailed,
+  ReviewError,
+} from './reviewService.js';
 
 export interface ReviewRouteOptions {
   db: DB;
@@ -35,11 +45,16 @@ export const reviewRoutes: FastifyPluginAsync<ReviewRouteOptions> = async (app, 
     <div class="muted">${esc(c.reply_reason ?? '')}</div>
     <button class="ok" type="submit">Aprobar</button>
     <button class="ko" type="submit" formaction="/review/${esc(c.comment_id)}/reject?token=${t}">Rechazar</button>
+    <button class="redo" type="submit" formaction="/review/${esc(c.comment_id)}/redo?token=${t}">Rehacer</button>
   </form>
 </div>`,
       )
       .join('\n');
     const msg = req.query.msg ? `<div class="card">${esc(req.query.msg)}</div>` : '';
+    const inQueue = countInQueue(opts.db);
+    const queued = inQueue
+      ? `<p class="muted">Generando ${inQueue === 1 ? '1 respuesta' : `${inQueue} respuestas`}… <a href="/review?token=${t}">recarga</a> en unos segundos.</p>`
+      : '';
     const failed = countRetryableFailed(opts.db);
     const failedList = failed
       ? `<details class="card"><summary>Ver ${failed === 1 ? 'el fallido' : `los ${failed} fallidos`} y por qué</summary><ul>${listRetryableFailed(opts.db)
@@ -56,8 +71,10 @@ export const reviewRoutes: FastifyPluginAsync<ReviewRouteOptions> = async (app, 
 <h1>Respuestas pendientes (${items.length})</h1>
 <p class="muted">${opts.settings.reviewMode ? 'REVIEW_MODE activo: nada se publica sin tu aprobación.' : 'REVIEW_MODE desactivado: las respuestas nuevas se publican solas.'} Al aprobar, se publica tras el delay aleatorio y respetando el tope por hora.</p>
 ${msg}
+${queued}
 ${retry}
 ${items.length > 1 ? `<form method="post" action="/review/approve-all?token=${t}"><button class="ok" type="submit">Aprobar todas sin cambios</button></form>` : ''}
+${items.length ? `<form method="post" action="/review/redo-all?token=${t}"><button class="redo" type="submit">Rehacer ${items.length === 1 ? 'la respuesta' : `las ${items.length} respuestas`} con el prompt actual</button></form>` : ''}
 ${cards || '<p class="muted">No hay nada pendiente.</p>'}`,
       ),
     );
@@ -85,6 +102,28 @@ ${cards || '<p class="muted">No hay nada pendiente.</p>'}`,
       if (err instanceof ReviewError) return reply.redirect(back(token, `✖ ${err.message}`), 303);
       throw err;
     }
+  });
+
+  app.post<{ Params: { id: string } }>('/review/:id/redo', async (req, reply) => {
+    const token = requestToken(req)!;
+    try {
+      redoPending(opts.db, req.params.id);
+      opts.onRequeued?.();
+      return reply.redirect(back(token, '✔ Rehaciendo la respuesta: aparecerá de nuevo en unos segundos'), 303);
+    } catch (err) {
+      if (err instanceof ReviewError) return reply.redirect(back(token, `✖ ${err.message}`), 303);
+      throw err;
+    }
+  });
+
+  app.post('/review/redo-all', async (req, reply) => {
+    const token = requestToken(req)!;
+    const n = redoPending(opts.db);
+    opts.onRequeued?.();
+    return reply.redirect(
+      back(token, `✔ Rehaciendo ${n === 1 ? '1 respuesta' : `${n} respuestas`}: aparecerán de nuevo en unos segundos`),
+      303,
+    );
   });
 
   app.post('/review/retry-failed', async (req, reply) => {
