@@ -25,7 +25,7 @@ export function testConfig(overrides: Partial<AppConfig['replies']> = {}): AppCo
       graphUrl: 'https://graph.facebook.com',
       login: 'unified',
     },
-    claude: { apiKey: 'test', model: 'claude-haiku-5-5' },
+    claude: { apiKey: 'test', model: 'claude-haiku-5-5', workspaceId: null },
     replies: {
       delayMinSec: 60,
       delayMaxSec: 300,

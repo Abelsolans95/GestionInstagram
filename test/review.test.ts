@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { buildApp } from '../src/app.js';
 import { getComment, insertCommentIfNew, updateComment } from '../src/db/comments.js';
 import { openDb, type DB } from '../src/db/index.js';
-import { approve, editReply, listPending, reject, retryFailed, ReviewError } from '../src/review/reviewService.js';
+import { approve, countRetryableFailed, editReply, listPending, reject, retryAllFailed, retryFailed, ReviewError } from '../src/review/reviewService.js';
 import { silentLogger } from './helpers/fakes.js';
 
 const TOKEN = 'report-token-0123456789';
@@ -72,6 +72,19 @@ describe('servicio de revisión', () => {
   });
 });
 
+describe('reintentar todos los fallidos', () => {
+  it('vuelve a encolar los fallidos de webhook/poll, nunca los importados', () => {
+    for (const [id, source] of [['w1', 'webhook'], ['w2', 'poll'], ['i1', 'import']] as const) {
+      insertCommentIfNew(db, { commentId: id, mediaId: 'm1', parentId: null, parentChecked: true, igUserId: null, username: 'u', text: 't', commentedAt: 1, source, status: source === 'import' ? 'imported' : 'queued' });
+      updateComment(db, id, { status: 'failed', last_error: 'clave mal' });
+    }
+    expect(countRetryableFailed(db)).toBe(2);
+    expect(retryAllFailed(db)).toBe(2);
+    expect(getComment(db, 'w1')).toMatchObject({ status: 'queued', last_error: null });
+    expect(getComment(db, 'i1')!.status).toBe('failed');
+  });
+});
+
 describe('página de revisión para el móvil', () => {
   let app: FastifyInstance;
   beforeEach(async () => {
@@ -116,6 +129,16 @@ describe('página de revisión para el móvil', () => {
     expect(res.statusCode).toBe(303);
     expect(decodeURIComponent(String(res.headers.location))).toContain('supera 200');
     expect(getComment(db, 'a')!.status).toBe('pending_review');
+  });
+
+  it('botón para reintentar los fallidos', async () => {
+    insertCommentIfNew(db, { commentId: 'f1', mediaId: 'm1', parentId: null, parentChecked: true, igUserId: null, username: 'u', text: 't', commentedAt: 1, source: 'webhook', status: 'queued' });
+    updateComment(db, 'f1', { status: 'failed' });
+    const page = await app.inject({ method: 'GET', url: `/review?token=${TOKEN}` });
+    expect(page.body).toContain('Reintentar 1 comentario fallido');
+    const res = await form(`/review/retry-failed?token=${TOKEN}`);
+    expect(res.statusCode).toBe(303);
+    expect(getComment(db, 'f1')!.status).toBe('queued');
   });
 
   it('rechazar y aprobar todas', async () => {

@@ -49,6 +49,8 @@ export interface ClaudeOptions {
   timeoutMs?: number;
   /** Por defecto el del SDK (o ANTHROPIC_BASE_URL si está definido). */
   baseURL?: string;
+  /** Para API keys que no pertenecen a un workspace: se envía en anthropic-workspace-id. */
+  workspaceId?: string | null;
 }
 
 export function createClaudeClient(opts: ClaudeOptions): LlmClient {
@@ -57,6 +59,7 @@ export function createClaudeClient(opts: ClaudeOptions): LlmClient {
     maxRetries: opts.maxRetries ?? 2,
     timeout: opts.timeoutMs ?? 60_000,
     ...(opts.baseURL ? { baseURL: opts.baseURL } : {}),
+    ...(opts.workspaceId ? { defaultHeaders: { 'anthropic-workspace-id': opts.workspaceId } } : {}),
   });
   const model = opts.model ?? DEFAULT_CLAUDE_MODEL;
   const effort = opts.effort ?? 'low';

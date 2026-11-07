@@ -73,3 +73,18 @@ export function retryFailed(db: DB, id: string, now = Date.now()): void {
   if (row.source === 'import') throw new ReviewError('Los comentarios importados no se responden');
   updateComment(db, id, { status: 'queued', attempts: 0, last_error: null }, now);
 }
+
+/** Comentarios fallidos que se pueden reintentar (de webhook o polling; nunca importados). */
+export function countRetryableFailed(db: DB): number {
+  return (db.prepare("SELECT COUNT(*) AS n FROM comments WHERE status = 'failed' AND source != 'import'").get() as { n: number }).n;
+}
+
+/** Vuelve a encolar todos los fallidos (p. ej. tras arreglar una clave). Devuelve cuántos. */
+export function retryAllFailed(db: DB, now = Date.now()): number {
+  return db
+    .prepare(
+      `UPDATE comments SET status = 'queued', attempts = 0, publish_attempts = 0, last_error = NULL, updated_at = ?
+       WHERE status = 'failed' AND source != 'import'`,
+    )
+    .run(now).changes;
+}

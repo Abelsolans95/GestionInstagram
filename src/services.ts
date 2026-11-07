@@ -62,7 +62,8 @@ export function createCoreServices(
     onWarning: (msg, data) => logger.warn(data ?? {}, msg),
   });
   const llm =
-    overrides.llm ?? createClaudeClient({ apiKey: config.claude.apiKey, model: config.claude.model });
+    overrides.llm ??
+    createClaudeClient({ apiKey: config.claude.apiKey, model: config.claude.model, workspaceId: config.claude.workspaceId });
   const prompts = overrides.prompts ?? createPromptStore();
   const lists = overrides.lists ?? createFilterLists();
   const analysis: AnalysisDeps = { db, read, llm, prompts, lists, igUserId: config.meta.igUserId, logger };

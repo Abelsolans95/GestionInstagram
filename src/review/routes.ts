@@ -3,12 +3,14 @@ import type { DB } from '../db/index.js';
 import { requestToken, requireToken } from '../reports/auth.js';
 import { esc, nav, page } from '../reports/html.js';
 import type { ReplySettings } from '../pipeline/replyStep.js';
-import { approve, listPending, reject, ReviewError } from './reviewService.js';
+import { approve, countRetryableFailed, listPending, reject, retryAllFailed, ReviewError } from './reviewService.js';
 
 export interface ReviewRouteOptions {
   db: DB;
   reportToken: string;
   settings: Pick<ReplySettings, 'delayMinSec' | 'delayMaxSec' | 'reviewMode'>;
+  /** Para despertar al worker cuando se reencolan comentarios. */
+  onRequeued?: () => void;
 }
 
 /** Página de revisión para el móvil: lista, edita, aprueba o rechaza las respuestas pendientes. */
@@ -38,6 +40,10 @@ export const reviewRoutes: FastifyPluginAsync<ReviewRouteOptions> = async (app, 
       )
       .join('\n');
     const msg = req.query.msg ? `<div class="card">${esc(req.query.msg)}</div>` : '';
+    const failed = countRetryableFailed(opts.db);
+    const retry = failed
+      ? `<form method="post" action="/review/retry-failed?token=${t}"><button class="ko" type="submit">Reintentar ${failed} comentario${failed === 1 ? '' : 's'} fallido${failed === 1 ? '' : 's'}</button></form>`
+      : '';
     return reply.type('text/html; charset=utf-8').send(
       page(
         'Revisión',
@@ -45,6 +51,7 @@ export const reviewRoutes: FastifyPluginAsync<ReviewRouteOptions> = async (app, 
 <h1>Respuestas pendientes (${items.length})</h1>
 <p class="muted">${opts.settings.reviewMode ? 'REVIEW_MODE activo: nada se publica sin tu aprobación.' : 'REVIEW_MODE desactivado: las respuestas nuevas se publican solas.'} Al aprobar, se publica tras el delay aleatorio y respetando el tope por hora.</p>
 ${msg}
+${retry}
 ${items.length > 1 ? `<form method="post" action="/review/approve-all?token=${t}"><button class="ok" type="submit">Aprobar todas sin cambios</button></form>` : ''}
 ${cards || '<p class="muted">No hay nada pendiente.</p>'}`,
       ),
@@ -73,6 +80,13 @@ ${cards || '<p class="muted">No hay nada pendiente.</p>'}`,
       if (err instanceof ReviewError) return reply.redirect(back(token, `✖ ${err.message}`), 303);
       throw err;
     }
+  });
+
+  app.post('/review/retry-failed', async (req, reply) => {
+    const token = requestToken(req)!;
+    const n = retryAllFailed(opts.db);
+    opts.onRequeued?.();
+    return reply.redirect(back(token, `✔ ${n} comentario${n === 1 ? '' : 's'} vuelve${n === 1 ? '' : 'n'} a la cola`), 303);
   });
 
   app.post('/review/approve-all', async (req, reply) => {

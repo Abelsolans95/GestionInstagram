@@ -40,4 +40,9 @@ describe('configuración', () => {
     expect(() => loadConfig({ ...base, IG_ACCESS_TOKEN: 'EAAabc\nIG_USER_ID=1784' })).toThrow(/IG_ACCESS_TOKEN[\s\S]*juntado/);
     expect(() => loadConfig({ ...base, ANTHROPIC_API_KEY: 'sk-ant 123' })).toThrow(/ANTHROPIC_API_KEY/);
   });
+
+  it('ANTHROPIC_WORKSPACE_ID es opcional', () => {
+    expect(loadConfig(base).claude.workspaceId).toBeNull();
+    expect(loadConfig({ ...base, ANTHROPIC_WORKSPACE_ID: 'wrkspc_123' }).claude.workspaceId).toBe('wrkspc_123');
+  });
 });

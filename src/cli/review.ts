@@ -5,11 +5,12 @@
  *   pnpm review approve <comment-id>... | --all
  *   pnpm review reject <comment-id>...
  *   pnpm review retry <comment-id>          (vuelve a encolar uno en 'failed')
+ *   pnpm review retry-failed                (vuelve a encolar todos los 'failed')
  *   pnpm review stats
  */
 import { parseArgs } from 'node:util';
 import { countByStatus } from '../db/comments.js';
-import { approve, editReply, listPending, reject, retryFailed } from '../review/reviewService.js';
+import { approve, editReply, listPending, reject, retryAllFailed, retryFailed } from '../review/reviewService.js';
 import { bootstrapCli, fmtDate, runCli } from './common.js';
 
 const USAGE = `Uso:
@@ -18,6 +19,7 @@ const USAGE = `Uso:
   pnpm review approve <comment-id>... | --all
   pnpm review reject <comment-id>...
   pnpm review retry <comment-id>
+  pnpm review retry-failed
   pnpm review stats`;
 
 runCli(async () => {
@@ -66,6 +68,10 @@ runCli(async () => {
       if (!args[0]) throw new Error(USAGE);
       retryFailed(s.db, args[0]);
       console.log(`✔ ${args[0]} vuelve a la cola`);
+      break;
+    }
+    case 'retry-failed': {
+      console.log(`✔ ${retryAllFailed(s.db)} comentarios vuelven a la cola`);
       break;
     }
     case 'stats': {

@@ -17,7 +17,12 @@ export interface AppDeps {
   /** Informes protegidos con REPORT_TOKEN (opcional para tests del webhook). */
   reports?: { db: DB; reportToken: string };
   /** Página de revisión (mismo token que los informes). */
-  review?: { db: DB; reportToken: string; settings: Pick<ReplySettings, 'delayMinSec' | 'delayMaxSec' | 'reviewMode'> };
+  review?: {
+    db: DB;
+    reportToken: string;
+    settings: Pick<ReplySettings, 'delayMinSec' | 'delayMaxSec' | 'reviewMode'>;
+    onRequeued?: () => void;
+  };
   /** Estado del servicio en JSON (mismo token). */
   status?: { reportToken: string; get: () => Record<string, unknown> };
 }

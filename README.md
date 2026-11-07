@@ -190,6 +190,7 @@ aprobar, se programa con el delay aleatorio y sale respetando el tope por hora.
   pnpm review approve <comment-id> [<comment-id>...]   # o --all
   pnpm review reject <comment-id>
   pnpm review retry <comment-id>                      # vuelve a encolar uno que falló
+  pnpm review retry-failed                            # vuelve a encolar todos los que fallaron
   pnpm review stats
   ```
 
@@ -297,7 +298,8 @@ y `error`. Los tokens nunca aparecen en los logs. Los payloads crudos de los web
 | `IG_ACCESS_TOKEN` | — | Token generado en el panel de Meta |
 | `IG_USER_ID` | — | ID de tu cuenta profesional de Instagram |
 | `WEBHOOK_VERIFY_TOKEN` | — | El mismo texto que pongas en Meta |
-| `ANTHROPIC_API_KEY` | — | |
+| `ANTHROPIC_API_KEY` | — | API key creada dentro de un workspace de la consola de Anthropic |
+| `ANTHROPIC_WORKSPACE_ID` | — | Solo si la key no pertenece a un workspace (`wrkspc_…`) |
 | `REPLY_DELAY_MIN` / `REPLY_DELAY_MAX` | 60 / 300 | Segundos |
 | `MAX_REPLIES_PER_HOUR` | 60 | |
 | `REVIEW_MODE` | true | |

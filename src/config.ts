@@ -52,6 +52,15 @@ const envSchema = z
 
     // Claude
     ANTHROPIC_API_KEY: secret,
+    /**
+     * Solo si la API key no pertenece a un workspace (Anthropic responde "This API key is not
+     * scoped to a workspace…"): ID del workspace (wrkspc_…) que se envía en anthropic-workspace-id.
+     */
+    ANTHROPIC_WORKSPACE_ID: z
+      .string()
+      .trim()
+      .optional()
+      .refine((v) => !v || !/\s/.test(v), { message: 'no puede contener espacios' }),
     CLAUDE_MODEL: nonEmpty.default('claude-haiku-5-5'),
 
     // Respuestas
@@ -95,7 +104,7 @@ export interface AppConfig {
     graphUrl: string;
     login: 'unified' | 'instagram';
   };
-  claude: { apiKey: string; model: string };
+  claude: { apiKey: string; model: string; workspaceId: string | null };
   replies: {
     delayMinSec: number;
     delayMaxSec: number;
@@ -133,7 +142,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
       ).replace(/\/+$/, ''),
       login: e.META_LOGIN,
     },
-    claude: { apiKey: e.ANTHROPIC_API_KEY, model: e.CLAUDE_MODEL },
+    claude: { apiKey: e.ANTHROPIC_API_KEY, model: e.CLAUDE_MODEL, workspaceId: e.ANTHROPIC_WORKSPACE_ID || null },
     replies: {
       delayMinSec: e.REPLY_DELAY_MIN,
       delayMaxSec: e.REPLY_DELAY_MAX,
