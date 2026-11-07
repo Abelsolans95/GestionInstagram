@@ -5,7 +5,6 @@ import { kvGet } from './db/index.js';
 import { createLogger } from './logger.js';
 import { createCommentProcessor } from './pipeline/processComment.js';
 import { errorMessage } from './pipeline/log.js';
-import { createLatestVideoTracker } from './pipeline/latestVideo.js';
 import { createReplyStep } from './pipeline/replyStep.js';
 import { createCommentQueue, pruneWebhookEvents } from './queue/commentQueue.js';
 import { createCoreServices } from './services.js';
@@ -31,7 +30,6 @@ async function main(): Promise<void> {
     lists: services.lists,
     logger,
     settings: config.replies,
-    latest: createLatestVideoTracker({ read: services.read, logger, ignored: config.ignoredReels }),
   });
   const processComment = createCommentProcessor({ ...services.analysis, replyStep });
   const worker = createReplyWorker({ db, queue, processComment, logger });

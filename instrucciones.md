@@ -256,10 +256,6 @@ Algunas tareas se hacen con comandos dentro del servidor de Railway.
   Railway redespliega solo.
 - **Palabras que no quieres responder**: `config/blocked.txt`.
 - **Frases de spam**: `config/spam.txt`.
-- **Reels de prueba**: si subes un reel que no es un día de la serie, añade su URL a la variable
-  `IGNORED_REELS` en Railway (varias, separadas por comas). Si no, el servicio lo toma por el
-  día nuevo y en el último día de verdad responde "ve a ver el nuevo día". Si lo borras o lo
-  archivas, deja de contar solo (en unos 10 minutos).
 - **Token**: con el login unificado no caduca por defecto (lo verás en la vista previa de la
   configuración en Meta). Deja de valer si quitas la app de tu portfolio comercial o mueves la
   cuenta de Instagram a otro portfolio: entonces genera otro (paso 3.3) y cámbialo en
@@ -280,5 +276,4 @@ Algunas tareas se hacen con comandos dentro del servidor de Railway.
 | Logs: `firma … inválida` (401) | Secret equivocado | Usa la *Clave secreta de la app* (paso 3.5) |
 | El *Test* llega pero los comentarios reales no | Meta puede exigir la app en modo Live | Plan B (`POLL_INTERVAL_SECONDS=60`) y avísame |
 | Tras un despliegue, los informes salen vacíos | El volumen no está en `/data` | Paso 2.3 |
-| Responde "ve a ver el nuevo día" en el último día | Hay un reel más nuevo (p. ej. de prueba) | Añádelo a `IGNORED_REELS` o archívalo (ver *Mantenimiento*) |
 | Logs: `Invalid OAuth access token` | El token ya no vale | Genera otro (paso 3.3) y actualiza `IG_ACCESS_TOKEN` |

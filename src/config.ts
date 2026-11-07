@@ -72,11 +72,6 @@ const envSchema = z
     LIKE_REPLIED_COMMENTS: bool.default(false),
     /** No responder comentarios más antiguos que esto (horas). Vacío o 0 = responder todos. */
     MAX_REPLY_AGE_HOURS: z.coerce.number().min(0).default(0),
-    /**
-     * Reels que no cuentan como "día nuevo" (p. ej. uno de prueba): URLs o IDs separados por comas.
-     * Sin esto, un reel de prueba hace que los comentarios del último día se traten como de un vídeo antiguo.
-     */
-    IGNORED_REELS: z.string().optional(),
 
     // Informes y página de revisión
     REPORT_TOKEN: secret.refine((v) => v.length >= 16, { message: 'usa un token largo (16+ caracteres)' }),
@@ -122,19 +117,8 @@ export interface AppConfig {
   };
   reportToken: string;
   poll: { intervalSec: number; mediaCount: number };
-  /** IDs o shortcodes de reels que no cuentan como el último vídeo. */
-  ignoredReels: string[];
 }
 
-/** "https://www.instagram.com/reel/ABC/, 1789…" → ["ABC", "1789…"] (shortcode si es una URL, si no, tal cual). */
-export function parseIgnoredReels(value: string | undefined): string[] {
-  if (!value) return [];
-  return value
-    .split(/[\s,]+/)
-    .map((v) => v.trim())
-    .filter(Boolean)
-    .map((v) => v.match(/instagram\.com\/(?:[\w.]+\/)?(?:reels?|p|tv)\/([\w-]+)/i)?.[1] ?? v);
-}
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   const parsed = envSchema.safeParse(env);
@@ -173,6 +157,5 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     },
     reportToken: e.REPORT_TOKEN,
     poll: { intervalSec: e.POLL_INTERVAL_SECONDS, mediaCount: e.POLL_MEDIA_COUNT },
-    ignoredReels: parseIgnoredReels(e.IGNORED_REELS),
   };
 }
