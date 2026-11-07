@@ -30,6 +30,13 @@ export interface ReplyInput {
    * null/undefined = no responde o no se sabe.
    */
   answerLabel?: string | null;
+  /** Tus últimas respuestas en este vídeo (más reciente primero), para no repetirse. */
+  recentReplies?: string[];
+}
+
+/** Quita la mención inicial ("@pepe genial!!" → "genial!!") y acorta. */
+function replyBody(text: string): string {
+  return text.replace(/^@[\w.]+\s*/, '').replace(/\s+/g, ' ').trim().slice(0, 120);
 }
 
 export function buildReplyUserMessage(i: ReplyInput): string {
@@ -45,6 +52,13 @@ export function buildReplyUserMessage(i: ReplyInput): string {
   if (i.parent) {
     lines.push(
       `Este comentario es una respuesta dentro de un hilo. Comentario padre (de @${i.parent.username ?? 'desconocido'}): """${i.parent.text}"""`,
+    );
+  }
+  const recent = (i.recentReplies ?? []).map(replyBody).filter(Boolean);
+  if (recent.length) {
+    lines.push(
+      'Mis últimas respuestas en este vídeo (la tuya tiene que ser distinta: otro arranque, otras palabras, otro emoji; no repitas preguntas):',
+      ...recent.map((r) => `- ${r}`),
     );
   }
   lines.push(

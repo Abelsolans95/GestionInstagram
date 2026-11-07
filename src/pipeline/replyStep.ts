@@ -1,3 +1,4 @@
+import { recentRepliesInMedia } from '../db/comments.js';
 import type { DB } from '../db/index.js';
 import { LlmRefusalError, type LlmClient } from '../llm/claude.js';
 import type { PromptStore } from '../llm/prompts.js';
@@ -74,6 +75,7 @@ export function createReplyStep(deps: ReplyStepDeps): ReplyStep {
         question: media.question,
         parent,
         answerLabel: label,
+        recentReplies: recentRepliesInMedia(deps.db, media.mediaId, row.comment_id),
       });
     } catch (err) {
       if (err instanceof LlmRefusalError) return skip('llm_refusal', err.message);

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { getComment, insertCommentIfNew, updateComment } from '../src/db/comments.js';
+import { getComment, insertCommentIfNew, recentRepliesInMedia, updateComment } from '../src/db/comments.js';
 import { openDb } from '../src/db/index.js';
 import { LlmRefusalError } from '../src/llm/claude.js';
 import { createCommentProcessor } from '../src/pipeline/processComment.js';
@@ -179,6 +179,34 @@ describe('filtros de respuesta (la extracción se hace igual)', () => {
       threadId: 'h', parentId: null, parent: null, hidden: true, label: null, extractError: null,
     });
     expect(out).toMatchObject({ status: 'skipped', decision: 'hidden' });
+  });
+
+  it('pasa al modelo tus últimas respuestas en el mismo vídeo (generadas y a mano), sin las rechazadas', async () => {
+    const db = openDb(':memory:');
+    const add = (id: string, at: number, extra: Record<string, unknown>, media = 'm1', parentId: string | null = null) => {
+      insertCommentIfNew(db, { commentId: id, mediaId: media, parentId, parentChecked: true, igUserId: null, username: 'u', text: (extra.text as string) ?? 'hola', commentedAt: at, source: 'webhook', status: 'queued' });
+      const { text: _t, ...patch } = extra;
+      updateComment(db, id, patch as never, at);
+    };
+    add('a', 1000, { status: 'replied', reply_text: '@u genial!!', replied_at: 1000, reply_comment_id: 'a-pub' });
+    add('a-pub', 1001, { status: 'skipped', decision: 'own_comment', text: '@u genial!!' }, 'm1', 'a');
+    add('b', 2000, { status: 'pending_review', reply_text: '@u otro pescador!!!' });
+    add('c', 3000, { status: 'rejected', reply_text: '@u esto no' });
+    add('d', 4000, { status: 'skipped', decision: 'own_comment', text: '@u existen los magos?' }, 'm1', 'b');
+    add('e', 5000, { status: 'skipped', decision: 'own_comment', text: 'ELECCIONES: vota a tu candidato' });
+    add('f', 6000, { status: 'replied', reply_text: '@u de otro vídeo', replied_at: 6000 }, 'm2');
+    expect(recentRepliesInMedia(db, 'm1', 'zz')).toEqual(['@u existen los magos?', '@u otro pescador!!!', '@u genial!!']);
+    expect(recentRepliesInMedia(db, 'm1', 'b')).toEqual(['@u existen los magos?', '@u genial!!']);
+    expect(recentRepliesInMedia(db, 'm1', 'zz', 1)).toEqual(['@u existen los magos?']);
+
+    const { llm, calls } = fakeLlm(() => ({ reply: '🔥', reason: 'x' }));
+    const step = createReplyStep({ db, llm, prompts: testPrompts, lists: testLists, logger: silentLogger, settings: { delayMinSec: 1, delayMaxSec: 2, reviewMode: true, maxAgeHours: 0 } });
+    await step({
+      row: { comment_id: 'new', username: 'pepe', text: 'yo', commented_at: Date.now(), source: 'webhook', status: 'processing' } as never,
+      media: { mediaId: 'm1', caption: null, permalink: null, shortcode: null, isOwn: true, question: null, questionSource: null },
+      threadId: 'new', parentId: null, parent: null, hidden: false, label: null, extractError: null,
+    });
+    expect(calls[0]!.user).toContain('- existen los magos?\n- otro pescador!!!\n- genial!!');
   });
 
   it('pasa al modelo la etiqueta de la extracción cuando el comentario responde a la pregunta', async () => {
