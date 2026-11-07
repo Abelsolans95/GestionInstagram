@@ -136,6 +136,7 @@ describe('página de revisión para el móvil', () => {
     updateComment(db, 'f1', { status: 'failed' });
     const page = await app.inject({ method: 'GET', url: `/review?token=${TOKEN}` });
     expect(page.body).toContain('Reintentar 1 comentario fallido');
+    expect(page.body).toContain('Ver el fallido y por qué');
     const res = await form(`/review/retry-failed?token=${TOKEN}`);
     expect(res.statusCode).toBe(303);
     expect(getComment(db, 'f1')!.status).toBe('queued');
@@ -149,5 +150,14 @@ describe('página de revisión para el móvil', () => {
     expect(getComment(db, 'a')!.status).toBe('rejected');
     await form(`/review/approve-all?token=${TOKEN}`);
     expect([getComment(db, 'b')!.status, getComment(db, 'c')!.status]).toEqual(['scheduled', 'scheduled']);
+  });
+});
+
+describe('motivo de los fallos en castellano', () => {
+  it('traduce los errores habituales', async () => {
+    const { friendlyError } = await import('../src/review/routes.js');
+    expect(friendlyError('401 {"error":{"type":"authentication_error","message":"Invalid bearer token"}}')).toMatch(/clave/);
+    expect(friendlyError("Meta API 400: Unsupported post request. Object with ID '1' does not exist")).toMatch(/ya no existe/);
+    expect(friendlyError(null)).toBe('sin detalle');
   });
 });

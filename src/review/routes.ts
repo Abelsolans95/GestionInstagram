@@ -3,7 +3,7 @@ import type { DB } from '../db/index.js';
 import { requestToken, requireToken } from '../reports/auth.js';
 import { esc, nav, page } from '../reports/html.js';
 import type { ReplySettings } from '../pipeline/replyStep.js';
-import { approve, countRetryableFailed, listPending, reject, retryAllFailed, ReviewError } from './reviewService.js';
+import { approve, countRetryableFailed, listPending, listRetryableFailed, reject, retryAllFailed, ReviewError } from './reviewService.js';
 
 export interface ReviewRouteOptions {
   db: DB;
@@ -41,8 +41,13 @@ export const reviewRoutes: FastifyPluginAsync<ReviewRouteOptions> = async (app, 
       .join('\n');
     const msg = req.query.msg ? `<div class="card">${esc(req.query.msg)}</div>` : '';
     const failed = countRetryableFailed(opts.db);
+    const failedList = failed
+      ? `<details class="card"><summary>Ver ${failed === 1 ? 'el fallido' : `los ${failed} fallidos`} y por qué</summary><ul>${listRetryableFailed(opts.db)
+          .map((c) => `<li><span class="label">@${esc(c.username ?? '?')}</span>: ${esc(c.text)}<br><span class="muted">${esc(friendlyError(c.last_error))}</span></li>`)
+          .join('')}</ul></details>`
+      : '';
     const retry = failed
-      ? `<form method="post" action="/review/retry-failed?token=${t}"><button class="ko" type="submit">Reintentar ${failed} comentario${failed === 1 ? '' : 's'} fallido${failed === 1 ? '' : 's'}</button></form>`
+      ? `<form method="post" action="/review/retry-failed?token=${t}"><button class="ko" type="submit">Reintentar ${failed} comentario${failed === 1 ? '' : 's'} fallido${failed === 1 ? '' : 's'}</button></form>${failedList}`
       : '';
     return reply.type('text/html; charset=utf-8').send(
       page(
@@ -103,3 +108,15 @@ ${cards || '<p class="muted">No hay nada pendiente.</p>'}`,
     return reply.redirect(back(token, `✔ ${n} aprobadas`), 303);
   });
 };
+
+/** Explica en castellano los errores más habituales. */
+export function friendlyError(err: string | null): string {
+  if (!err) return 'sin detalle';
+  if (/authentication_error|Invalid bearer token|x-api-key/i.test(err)) return 'Claude rechaza la clave (ANTHROPIC_API_KEY): revísala y luego reintenta';
+  if (/not scoped to a workspace/i.test(err)) return 'La clave de Claude no pertenece a un workspace: usa una creada dentro de uno';
+  if (/credit balance|billing|insufficient/i.test(err)) return 'Sin crédito en Anthropic: añade crédito y luego reintenta';
+  if (/does not exist|Unsupported post request/i.test(err)) return 'El comentario ya no existe o está oculto: no se puede responder (reintentar no sirve)';
+  if (/OAuth|access token/i.test(err)) return 'El token de Meta no vale (IG_ACCESS_TOKEN): genera otro';
+  if (/rate limit|429|too many/i.test(err)) return 'Límite de llamadas: espera un rato y reintenta';
+  return err.slice(0, 200);
+}

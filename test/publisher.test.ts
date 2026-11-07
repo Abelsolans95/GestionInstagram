@@ -143,3 +143,20 @@ describe('publicador (cliente de escritura)', () => {
     expect(meta.posts()).toEqual([]);
   });
 });
+
+describe('comentarios que ya no existen', () => {
+  it('si Meta dice que el comentario no existe, queda como no disponible (no como fallido)', async () => {
+    const { db, publisher } = setup({
+      fetch: (base) => async (u, i) =>
+        i.method === 'POST'
+          ? new Response(
+              JSON.stringify({ error: { message: "Unsupported post request. Object with ID '17000000000000001' does not exist, cannot be loaded due to missing permissions, or does not support this operation.", code: 100, error_subcode: 33 } }),
+              { status: 400 },
+            )
+          : base(u, i),
+    });
+    scheduled(db, 'c1');
+    await publisher.tick();
+    expect(getComment(db, 'c1')).toMatchObject({ status: 'skipped', decision: 'comment_unavailable' });
+  });
+});

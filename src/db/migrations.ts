@@ -113,4 +113,13 @@ export const MIGRATIONS: readonly string[] = [
   ALTER TABLE comments ADD COLUMN publish_attempts INTEGER NOT NULL DEFAULT 0;
   CREATE INDEX comments_publish_idx ON comments (status, publish_at);
   `,
+
+  // 4 — los que fallaron al publicar porque el comentario ya no existe no son "fallidos"
+  `
+  UPDATE comments
+     SET status = 'skipped', decision = 'comment_unavailable',
+         reason = 'el comentario ya no existe o está oculto: no se puede responder'
+   WHERE status = 'failed' AND decision = 'publish_failed'
+     AND (last_error LIKE '%does not exist%' OR last_error LIKE '%Unsupported post request%');
+  `,
 ];

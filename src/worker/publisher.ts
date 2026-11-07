@@ -43,6 +43,20 @@ export interface Publisher {
 
 const RATE_LIMIT_CODES = new Set([4, 17, 32, 613]);
 
+/**
+ * Meta responde "Unsupported post request. Object with ID '…' does not exist, cannot be loaded
+ * due to missing permissions, or does not support this operation" (código 100, subcódigo 33)
+ * cuando el comentario se ha borrado u ocultado.
+ */
+export function isCommentUnavailable(err: unknown): boolean {
+  return (
+    err instanceof MetaApiError &&
+    err.status === 400 &&
+    err.code === 100 &&
+    (err.subcode === 33 || /does not exist/i.test(err.message))
+  );
+}
+
 function classify(err: unknown): 'rate_limited' | 'ambiguous' | 'definitive' {
   if (!(err instanceof MetaApiError)) return 'ambiguous';
   if (err.status === null || err.status >= 500) return 'ambiguous';
@@ -129,6 +143,31 @@ export function createPublisher(opts: PublisherOptions): Publisher {
           updateComment(db, row.comment_id, { status: 'failed', decision: 'publish_failed', last_error: `${msg}; sin verificar si se publicó` }, now());
           return 0;
         }
+      }
+      // El comentario ya no existe o no se puede responder (borrado u ocultado por su autor o por
+      // Instagram): no es un fallo que reintentar, se marca como no disponible.
+      if (isCommentUnavailable(err)) {
+        updateComment(
+          db,
+          row.comment_id,
+          {
+            status: 'skipped',
+            decision: 'comment_unavailable',
+            reason: 'el comentario ya no existe o está oculto: no se puede responder',
+            last_error: msg,
+          },
+          now(),
+        );
+        logCommentOutcome(logger, {
+          comment_id: row.comment_id,
+          username: row.username,
+          origin: row.source,
+          decision: 'comment_unavailable',
+          reason: 'el comentario ya no existe o está oculto',
+          latency_ms: Date.now() - started,
+          error: msg,
+        });
+        return 0;
       }
       const attempts = row.publish_attempts;
       const giveUp = kind === 'definitive' || attempts >= MAX_PUBLISH_ATTEMPTS;

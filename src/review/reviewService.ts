@@ -88,3 +88,10 @@ export function retryAllFailed(db: DB, now = Date.now()): number {
     )
     .run(now).changes;
 }
+
+/** Comentarios fallidos (los que reintenta el botón), con el motivo. */
+export function listRetryableFailed(db: DB, limit = 50): CommentRow[] {
+  return db
+    .prepare("SELECT * FROM comments WHERE status = 'failed' AND source != 'import' ORDER BY updated_at DESC LIMIT ?")
+    .all(limit) as CommentRow[];
+}
