@@ -26,7 +26,7 @@ describe('mensaje al modelo según si el vídeo es el último', () => {
 });
 
 describe('seguimiento del último vídeo', () => {
-  function fakeRead(list: { id: string; media_type?: string; timestamp?: string }[]) {
+  function fakeRead(list: { id: string; media_type?: string; timestamp?: string; shortcode?: string }[]) {
     let calls = 0;
     const read = { getRecentMedia: async () => (calls++, list) } as unknown as ReadClient;
     return { read, calls: () => calls };
@@ -42,6 +42,17 @@ describe('seguimiento del último vídeo', () => {
     t += 11 * 60_000;
     await tracker.get();
     expect(r.calls()).toBe(2);
+  });
+
+  it('IGNORED_REELS: un reel de prueba no cuenta como el último (por ID o por shortcode)', async () => {
+    const list = [
+      { id: 'prueba1', media_type: 'VIDEO', shortcode: 'PRB1' },
+      { id: 'prueba2', media_type: 'VIDEO', shortcode: 'PRB2' },
+      { id: 'dia3', media_type: 'VIDEO', shortcode: 'DIA3' },
+    ];
+    const tracker = createLatestVideoTracker({ read: fakeRead(list).read, logger: silentLogger, ignored: ['PRB1', 'prueba2'] });
+    expect((await tracker.get())?.mediaId).toBe('dia3');
+    expect((await createLatestVideoTracker({ read: fakeRead(list).read, logger: silentLogger }).get())?.mediaId).toBe('prueba1');
   });
 
   it('si Meta falla, devuelve lo último que sabía', async () => {

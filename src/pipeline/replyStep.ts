@@ -50,7 +50,7 @@ const skip = (decision: string, reason: string, extra: Partial<ProcessOutcome> =
  */
 export function createReplyStep(deps: ReplyStepDeps): ReplyStep {
   const now = deps.now ?? Date.now;
-  return async ({ row, media, threadId, parentId, parent, hidden }) => {
+  return async ({ row, media, threadId, parentId, parent, hidden, label }) => {
     if (row.source === 'import' || row.status === 'imported') {
       return skip('imported', 'comentario importado: nunca se responde');
     }
@@ -95,6 +95,7 @@ export function createReplyStep(deps: ReplyStepDeps): ReplyStep {
         question: media.question,
         parent,
         newerVideo,
+        answerLabel: label,
       });
     } catch (err) {
       if (err instanceof LlmRefusalError) return skip('llm_refusal', err.message);

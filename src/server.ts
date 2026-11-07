@@ -31,7 +31,7 @@ async function main(): Promise<void> {
     lists: services.lists,
     logger,
     settings: config.replies,
-    latest: createLatestVideoTracker({ read: services.read, logger }),
+    latest: createLatestVideoTracker({ read: services.read, logger, ignored: config.ignoredReels }),
   });
   const processComment = createCommentProcessor({ ...services.analysis, replyStep });
   const worker = createReplyWorker({ db, queue, processComment, logger });

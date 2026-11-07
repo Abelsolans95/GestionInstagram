@@ -269,7 +269,7 @@ envía `Authorization: Bearer TU_REPORT_TOKEN`.
 | Ruta | Qué muestra |
 |---|---|
 | `GET /report` | Índice de vídeos con su pregunta |
-| `GET /report/:mediaId` | La pregunta y las respuestas agrupadas por etiqueta, ordenadas por número de personas (`herrero (3): @a, @b, @c`); al final, los comentarios que no responden. `?format=csv` |
+| `GET /report/:mediaId` | La pregunta y las respuestas agrupadas por etiqueta, ordenadas por número de personas (`herrero (3): @a, @b, @c`); al final, los comentarios que no responden. `?format=csv`, `?format=md`, `?format=conversaciones` (cada hilo con tus respuestas marcadas, en Markdown) |
 | `GET /participants` | Ficha por seguidor: @usuario, nombre de personaje y su respuesta en cada vídeo. `?format=csv` |
 | `GET /review` | Respuestas pendientes de aprobar |
 | `GET /status` | Estado en JSON: comentarios por estado, respuestas en la última hora, token |
@@ -305,6 +305,7 @@ y `error`. Los tokens nunca aparecen en los logs. Los payloads crudos de los web
 | `REVIEW_MODE` | true | |
 | `REPORT_TOKEN` | — | 16+ caracteres aleatorios |
 | `MAX_REPLY_AGE_HOURS` | 0 | 0 = responder todos |
+| `IGNORED_REELS` | — | Reels que no cuentan como "día nuevo" (p. ej. uno de prueba): URLs o IDs separados por comas. Si no, los comentarios del último día se responden como de un vídeo antiguo ("ve a ver el nuevo día") |
 | `LIKE_REPLIED_COMMENTS` | false | Me gusta al comentario respondido (`POST /{IG_USER_ID}/likes`). Según Meta solo con *Facebook Login* y el permiso `instagram_manage_engagement`; si lo rechaza, se desactiva solo |
 | `POLL_INTERVAL_SECONDS` / `POLL_MEDIA_COUNT` | 0 / 5 | Plan B; 0 = apagado |
 | `CLAUDE_MODEL` | `claude-haiku-5-5` | |

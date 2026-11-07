@@ -19,16 +19,20 @@ export function createLatestVideoTracker(opts: {
   logger: Logger;
   ttlMs?: number;
   now?: () => number;
+  /** IDs o shortcodes de reels que no cuentan (p. ej. de prueba): config IGNORED_REELS. */
+  ignored?: string[];
 }): LatestVideoTracker {
   const ttl = opts.ttlMs ?? 10 * 60_000;
   const now = opts.now ?? Date.now;
+  const ignored = new Set(opts.ignored ?? []);
+  const counts = (x: { id: string; shortcode?: string }) => !ignored.has(x.id) && !(x.shortcode && ignored.has(x.shortcode));
   let cached: { value: LatestVideo | null; at: number } | null = null;
 
   return {
     async get({ force = false } = {}) {
       if (!force && cached && now() - cached.at < ttl) return cached.value;
       try {
-        const recent = await opts.read.getRecentMedia(5);
+        const recent = (await opts.read.getRecentMedia(5 + ignored.size)).filter(counts);
         // Las publicaciones vienen de más reciente a más antigua; preferimos vídeos (reels).
         const m = recent.find((x) => x.media_type === 'VIDEO') ?? recent[0];
         const ts = m?.timestamp ? Date.parse(m.timestamp) : NaN;

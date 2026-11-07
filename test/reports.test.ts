@@ -2,7 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { buildApp } from '../src/app.js';
 import { setQuestion, upsertMedia } from '../src/db/analysis.js';
-import { insertCommentIfNew } from '../src/db/comments.js';
+import { insertCommentIfNew, updateComment } from '../src/db/comments.js';
 import { openDb, type DB } from '../src/db/index.js';
 import { storeAnalysis } from '../src/pipeline/extraction.js';
 import type { MediaView } from '../src/pipeline/context.js';
@@ -139,6 +139,37 @@ describe('GET /report/:mediaId?format=md', () => {
 
   it('la página enlaza el MD', async () => {
     expect((await get(`/report/m1?token=${TOKEN}`)).body).toContain(`format=md&token=${TOKEN}`);
+  });
+});
+
+describe('GET /report/:mediaId?format=conversaciones', () => {
+  it('cada hilo con tus respuestas marcadas (y las automáticas aparte)', async () => {
+    upsertMedia(db, { mediaId: 'm3', shortcode: 'm3', permalink: null, caption: null, mediaType: 'VIDEO', postedAt: 3, ownerId: IG_USER_ID, ownerUsername: null, isOwn: true });
+    setQuestion(db, 'm3', '¿qué sabes hacer?', 'manual');
+    const c = (id: string, username: string, text: string, at: number, parentId: string | null = null) =>
+      insertCommentIfNew(db, { commentId: id, mediaId: 'm3', parentId, parentChecked: true, igUserId: null, username, text, commentedAt: at, source: 'import', status: 'imported' });
+    c('t1', 'ana', 'Puedo cazar?', 10);
+    c('t1r', 'humanidaddesdecero', '@ana un cazador hacía falta!! 🔥', 20, 't1');
+    updateComment(db, 't1r', { decision: 'own_comment' });
+    c('t2', 'luis', 'yo pesco', 15);
+    c('t2r', 'humanidaddesdecero', '@luis 🔥', 30, 't2');
+    updateComment(db, 't2r', { decision: 'own_comment' });
+    updateComment(db, 't2', { reply_comment_id: 't2r' });
+    c('t3', 'eva', 'qué guapo', 25);
+
+    const res = await get(`/report/m3?format=conversaciones&token=${TOKEN}`);
+    expect(res.headers['content-type']).toContain('text/markdown');
+    expect(res.headers['content-disposition']).toContain('conversaciones-m3.md');
+    expect(res.body).toContain('# Conversaciones · ¿qué sabes hacer?');
+    expect(res.body).toContain('3 hilos · respondiste en 2');
+    expect(res.body).toContain('- @ana: Puedo cazar?\n  - **tú:** @ana un cazador hacía falta!! 🔥');
+    expect(res.body).toContain('- @luis: yo pesco\n  - **tú (automática):** @luis 🔥');
+    expect(res.body).toContain('- @eva: qué guapo\n  - (sin respuesta)');
+  });
+
+  it('la página enlaza la descarga y un vídeo desconocido da 404', async () => {
+    expect((await get(`/report/m1?token=${TOKEN}`)).body).toContain(`format=conversaciones&token=${TOKEN}`);
+    expect((await get(`/report/nope?format=conversaciones&token=${TOKEN}`)).statusCode).toBe(404);
   });
 });
 

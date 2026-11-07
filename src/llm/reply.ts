@@ -30,6 +30,11 @@ export interface ReplyInput {
    * null = es el último (o no se sabe).
    */
   newerVideo?: { postedAt: number | null } | null;
+  /**
+   * Etiqueta de la extracción si el comentario responde a la pregunta del vídeo (p. ej. "cazador").
+   * null/undefined = no responde o no se sabe.
+   */
+  answerLabel?: string | null;
 }
 
 const fmtDay = (ms: number) =>
@@ -46,6 +51,11 @@ export function buildReplyUserMessage(i: ReplyInput): string {
     );
   } else if (i.newerVideo === null) {
     lines.push('Este vídeo es el último publicado.');
+  }
+  if (i.answerLabel) {
+    lines.push(
+      `Este comentario responde a la pregunta del vídeo (respuesta: "${i.answerLabel}"): es participación, no una petición fuera de lo que pregunta el vídeo.`,
+    );
   }
   if (i.parent) {
     lines.push(

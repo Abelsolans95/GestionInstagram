@@ -58,4 +58,11 @@ describe('validación de la respuesta del modelo', () => {
     expect(m).toContain('Comentario padre (de @ana): """quién hace pan?"""');
     expect(m).toContain(`Tu respuesta debe empezar por @${U}`);
   });
+
+  it('si la extracción dice que responde a la pregunta, el mensaje lo indica', () => {
+    const base = { username: U, text: 'Puedo cazar?', caption: null, question: '¿qué sabes hacer: cazar, pescar, vigilar...?', parent: null };
+    expect(buildReplyUserMessage({ ...base, answerLabel: 'cazador' })).toContain('responde a la pregunta del vídeo (respuesta: "cazador")');
+    expect(buildReplyUserMessage({ ...base, answerLabel: null })).not.toContain('responde a la pregunta del vídeo');
+    expect(buildReplyUserMessage(base)).not.toContain('responde a la pregunta del vídeo');
+  });
 });
