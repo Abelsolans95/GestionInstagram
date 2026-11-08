@@ -105,6 +105,7 @@ export function buildMediaReport(db: DB, mediaId: string): MediaReport | null {
 
 export interface MediaSummary {
   mediaId: string;
+  accountId: string | null;
   permalink: string | null;
   question: string | null;
   postedAt: number | null;
@@ -117,15 +118,16 @@ export function listReportMedia(db: DB): MediaSummary[] {
   return (
     db
       .prepare(
-        `SELECT m.media_id, m.permalink, m.question, m.posted_at,
+        `SELECT m.media_id, m.account_id, m.permalink, m.question, m.posted_at,
            (SELECT COUNT(*) FROM answers a WHERE a.media_id = m.media_id AND a.is_latest = 1) AS people,
            (SELECT COUNT(*) FROM comments c WHERE c.media_id = m.media_id AND c.extract_status = 'done') AS comments
          FROM media m WHERE m.is_own IS NOT 0
          ORDER BY COALESCE(m.posted_at, m.fetched_at) DESC`,
       )
-      .all() as { media_id: string; permalink: string | null; question: string | null; posted_at: number | null; people: number; comments: number }[]
+      .all() as { media_id: string; account_id: string | null; permalink: string | null; question: string | null; posted_at: number | null; people: number; comments: number }[]
   ).map((r) => ({
     mediaId: r.media_id,
+    accountId: r.account_id,
     permalink: r.permalink,
     question: r.question,
     postedAt: r.posted_at,
@@ -154,25 +156,34 @@ export interface ParticipantsReport {
   participants: ParticipantCard[];
 }
 
-/** Ficha por seguidor: @usuario, nombre de personaje y su respuesta (la que cuenta) en cada vídeo. */
-export function buildParticipantsReport(db: DB): ParticipantsReport {
+/**
+ * Ficha por seguidor: @usuario, nombre de personaje y su respuesta (la que cuenta) en cada vídeo.
+ * Con varias cuentas, de una cuenta (sin accountId, de todas).
+ */
+export function buildParticipantsReport(db: DB, accountId?: string | null): ParticipantsReport {
+  const account = accountId ?? null;
   const media = (
     db
       .prepare(
-        `SELECT DISTINCT m.media_id, m.question, m.permalink, m.posted_at FROM media m
+        `SELECT DISTINCT m.media_id, m.question, m.permalink, m.posted_at, m.fetched_at FROM media m
          JOIN answers a ON a.media_id = m.media_id
+         WHERE @account IS NULL OR m.account_id = @account
          ORDER BY COALESCE(m.posted_at, m.fetched_at)`,
       )
-      .all() as { media_id: string; question: string | null; permalink: string | null; posted_at: number | null }[]
+      .all({ account }) as { media_id: string; question: string | null; permalink: string | null; posted_at: number | null }[]
   ).map((m) => ({ mediaId: m.media_id, question: m.question, permalink: m.permalink, postedAt: m.posted_at }));
 
   const people = db
-    .prepare('SELECT * FROM participants ORDER BY n_comments DESC, username')
-    .all() as { username: string; character_name: string | null; n_comments: number; first_seen: number; last_seen: number }[];
+    .prepare('SELECT * FROM participants WHERE @account IS NULL OR account_id = @account ORDER BY n_comments DESC, username')
+    .all({ account }) as { username: string; character_name: string | null; n_comments: number; first_seen: number; last_seen: number }[];
 
   const answers = db
-    .prepare('SELECT username, media_id, answer_label, answer, n_answers FROM answers WHERE is_latest = 1')
-    .all() as { username: string; media_id: string; answer_label: string | null; answer: string | null; n_answers: number }[];
+    .prepare(
+      `SELECT a.username, a.media_id, a.answer_label, a.answer, a.n_answers FROM answers a
+       JOIN media m ON m.media_id = a.media_id
+       WHERE a.is_latest = 1 AND (@account IS NULL OR m.account_id = @account)`,
+    )
+    .all({ account }) as { username: string; media_id: string; answer_label: string | null; answer: string | null; n_answers: number }[];
   const byUser = new Map<string, Record<string, ParticipantAnswer>>();
   for (const a of answers) {
     const rec = byUser.get(a.username) ?? {};

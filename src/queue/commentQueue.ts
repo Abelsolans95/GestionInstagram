@@ -47,6 +47,7 @@ export function createCommentQueue(db: DB, now: () => number = Date.now): Commen
           db,
           {
             commentId: e.commentId,
+            accountId: e.accountId,
             mediaId: e.mediaId,
             parentId: e.parentId,
             // Si el payload trae parent_id es una respuesta confirmada; si no, el worker lo comprobará.

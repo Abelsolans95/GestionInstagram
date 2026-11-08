@@ -23,6 +23,8 @@ export interface ReplyStepDeps {
   lists: FilterLists;
   logger: Logger;
   settings: ReplySettings;
+  /** Cuenta que responde (las quejas se cuentan por cuenta). */
+  accountId?: string;
   now?: () => number;
   random?: () => number;
 }
@@ -89,7 +91,7 @@ export function createReplyStep(deps: ReplyStepDeps): ReplyStep {
       return skip('invalid_llm_output', `salida descartada: ${v.error}`);
     }
     // Quejas de que no sale: solo se responde una vez a cada persona.
-    if (v.complaint && complaintRepliesForUser(deps.db, row.username, row.comment_id) > 0) {
+    if (v.complaint && complaintRepliesForUser(deps.db, row.username, row.comment_id, deps.accountId ?? row.account_id) > 0) {
       return skip('complaint_repeat', 'queja de que no sale: ya se le respondió una vez');
     }
     if (v.reply === null) return skip('llm_null', `el modelo no responde: ${v.reason}`);

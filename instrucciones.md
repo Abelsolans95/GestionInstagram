@@ -252,10 +252,62 @@ Algunas tareas se hacen con comandos dentro del servidor de Railway.
 
 ---
 
+## 12. Añadir otra cuenta de Instagram
+
+El mismo servicio responde en todas tus cuentas: **no hace falta** otro proyecto en Railway ni otra
+app de Meta. Repite esto por cada cuenta nueva (en el ejemplo, la del repartidor).
+
+- [ ] **12.1 Cuenta profesional y pública.** En la app de Instagram, con la cuenta nueva:
+  configuración de la cuenta → cambiar a **cuenta profesional** (*creador* vale).
+- [ ] **12.2 Invítala como tester**, igual que en el paso 3.2: panel de Meta → *API setup with
+  Unified login* → *Generate access tokens* → **Add account** → invita a la cuenta nueva como
+  **Instagram Tester**. Acepta la invitación desde <https://www.instagram.com> **con la cuenta
+  nueva** → **Configuración** → **Permisos de sitios web** → **Apps y sitios web** →
+  **Invitaciones de tester**.
+- [ ] **12.3 Genera su token** (**Generate token** junto a la cuenta nueva) y cópialo en ese
+  momento.
+- [ ] **12.4 Saca su ID** con la misma URL del paso 3.4, pero con el token nuevo:
+  ```
+  https://graph.facebook.com/v27.0/me/assigned_instagram_accounts?fields=id,username&access_token=TOKEN_NUEVO
+  ```
+  Apunta el `id` de la cuenta nueva (empieza por `1784…`).
+- [ ] **12.5 Dile a Haiku de qué va la cuenta.** Cada cuenta tiene sus prompts en
+  `prompts/cuentas/<usuario>/` (el @ de la cuenta, en minúscula, sin la @). Como mínimo hace falta
+  `reply.md`; si sus vídeos hacen preguntas y quieres informes, también `question.md` y
+  `extract.md` (sin ellos, en esa cuenta solo se responde). `historia.md` es opcional. Lo más fácil:
+  **pídemelo** diciéndome el @ y de qué va la cuenta, y te los preparo con el mismo tono.
+  Si la cuenta empieza a recibir comentarios antes de tener `reply.md`, no se publica nada: quedan
+  como *fallidos* y, cuando lo añadas, los recuperas con **Reintentar** en la página de revisión.
+- [ ] **12.6 Variables en Railway.** En el servicio → **Variables**:
+  - `IG_USER_ID`: añade el ID nuevo **detrás del que ya hay, separado por una coma**, sin espacios:
+    `IG_USER_ID=17841473194207976,ID_NUEVO`. El primero sigue siendo la cuenta principal.
+  - Crea una variable nueva `IG_ACCESS_TOKEN_ID_NUEVO` (con el ID nuevo en el nombre, p. ej.
+    `IG_ACCESS_TOKEN_17841400000000002`) con el token nuevo. `IG_ACCESS_TOKEN` no se toca.
+  - Guarda. En los logs del despliegue verás una línea `cuenta de Instagram` por cada cuenta, con
+    su `username`. Si la nueva sale con `username: null`, el token o el ID están mal: repite 12.3 y
+    12.4.
+- [ ] **12.7 Activa sus notificaciones** (como en el paso 5.3, con el ID y el token **nuevos**):
+  ```bash
+  curl -X POST "https://graph.facebook.com/v27.0/ID_NUEVO/subscribed_apps?subscribed_fields=comments&access_token=TOKEN_NUEVO"
+  ```
+  Debe responder `{"success":true}`. El webhook es el mismo: no hay que tocarlo en Meta.
+- [ ] **12.8 Prueba.** Comenta en un vídeo de la cuenta nueva desde otra cuenta. En
+  `https://TU_DOMINIO/review?token=TU_REPORT_TOKEN` aparece con el @ de la cuenta en negrita.
+- [ ] **12.9 (Opcional) Sus comentarios antiguos**, sin responderlos (paso 9, con `--cuenta`):
+  ```
+  pnpm import:comments --cuenta USUARIO_NUEVO
+  ```
+
+Cosas que valen para todas las cuentas a la vez: `REVIEW_MODE`, el delay y las listas de
+`config/`. El tope de `MAX_REPLIES_PER_HOUR` es **por cuenta**. En `/report` los vídeos salen
+separados por cuenta y en `/participants` arriba eliges la cuenta.
+
+---
+
 ## Mantenimiento
 
 - **Cambiar cómo respondes**: edita `prompts/reply.md` en GitHub (botón del lápiz) y guarda.
-  Railway redespliega solo.
+  Railway redespliega solo. Las demás cuentas tienen los suyos en `prompts/cuentas/<usuario>/`.
 - **Lo que ya existe en la historia**: `prompts/historia.md`. Cuando en un vídeo se descubra o se
   construya algo (la rueda, las casas…), muévelo a "Ya existe". Si no, Haiku puede decir que aún
   hay que inventarlo.

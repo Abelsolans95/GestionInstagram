@@ -12,7 +12,7 @@ import { createHash } from 'node:crypto';
 import { kvGet, kvSet, type DB } from '../db/index.js';
 import { graphGet, MetaApiError, type GraphContext } from './http.js';
 
-const KEY = 'ig_access_token';
+const DEFAULT_KEY = 'ig_access_token';
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 interface StoredToken {
@@ -54,11 +54,14 @@ export interface TokenStoreOptions {
    * refresca con /refresh_access_token (eso es solo para tokens de usuario de Instagram).
    */
   refreshable?: boolean;
+  /** Clave en la tabla kv (una por cuenta; la principal usa 'ig_access_token'). */
+  key?: string;
   now?: () => number;
 }
 
 export function createTokenStore(opts: TokenStoreOptions): TokenStore {
   const { db, envToken } = opts;
+  const KEY = opts.key ?? DEFAULT_KEY;
   const now = opts.now ?? Date.now;
   const refreshEveryMs = opts.refreshEveryMs ?? 7 * DAY_MS;
   const envFp = fingerprint(envToken);

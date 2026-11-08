@@ -34,8 +34,9 @@ runCli(async () => {
       const items = listPending(s.db);
       if (!items.length) console.log('No hay respuestas pendientes.');
       for (const c of items) {
+        const who = s.accounts.all.length > 1 ? `${s.accounts.label(c.account_id)} · ` : '';
         console.log(
-          `\n[${c.comment_id}] ${fmtDate(c.created_at)} · ${c.question ?? '(sin pregunta)'}\n  @${c.username}: ${c.text}\n  → ${c.reply_text}\n    (${c.reply_reason ?? ''})`,
+          `\n[${c.comment_id}] ${who}${fmtDate(c.created_at)} · ${c.question ?? '(sin pregunta)'}\n  @${c.username}: ${c.text}\n  → ${c.reply_text}\n    (${c.reply_reason ?? ''})`,
         );
       }
       console.log(`\n${items.length} pendientes. REVIEW_MODE=${settings.reviewMode}`);

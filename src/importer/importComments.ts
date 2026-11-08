@@ -9,6 +9,7 @@
  *  - Con dryRun no escribe nada en la base de datos: solo muestra lo que extraería.
  */
 import { getComment, insertCommentIfNew, updateComment } from '../db/comments.js';
+import { hasPrompt } from '../llm/prompts.js';
 import type { IgComment, IgMedia } from '../meta/types.js';
 import { ensureMedia, ensureQuestion, getOwnIdentity, type AnalysisDeps, type MediaView } from '../pipeline/context.js';
 import { analyzeComment, storeAnalysis, type CommentForAnalysis } from '../pipeline/extraction.js';
@@ -23,6 +24,8 @@ export interface ImportOptions {
   maxMedia?: number;
   /** Salida legible para la consola. */
   print?: (line: string) => void;
+  /** Tus otras cuentas: sus comentarios se tratan como propios. */
+  otherOwnAccounts?: OwnIdentity[];
 }
 
 export interface ImportSummary {
@@ -65,6 +68,8 @@ export async function importComments(deps: AnalysisDeps, opts: ImportOptions): P
   };
 
   const own = await getOwnIdentity(deps, { persist });
+  const canAnalyze = hasPrompt(deps.prompts, 'extract');
+  if (!canAnalyze) print('Esta cuenta no tiene prompts/cuentas/<cuenta>/extract.md: se registran los comentarios (para no responderlos) sin analizarlos.');
 
   async function* mediaSource(): AsyncGenerator<IgMedia> {
     if (opts.mediaIds?.length) {
@@ -117,6 +122,7 @@ export async function importComments(deps: AnalysisDeps, opts: ImportOptions): P
 
     const row = {
       commentId: c.id,
+      accountId: deps.igUserId,
       mediaId: media.mediaId,
       parentId: parent?.id ?? c.parent_id ?? null,
       parentChecked: true,
@@ -135,7 +141,8 @@ export async function importComments(deps: AnalysisDeps, opts: ImportOptions): P
       log(decision, { reason });
     };
 
-    if (isOwnComment({ igUserId, username }, own as OwnIdentity)) {
+    const mine = [own as OwnIdentity, ...(opts.otherOwnAccounts ?? [])];
+    if (mine.some((o) => isOwnComment({ igUserId, username }, o))) {
       summary.own++;
       return skipWith('own_comment', 'comentario de tu propia cuenta');
     }
@@ -152,8 +159,17 @@ export async function importComments(deps: AnalysisDeps, opts: ImportOptions): P
       return;
     }
 
+    // Cuenta sin prompt de análisis: queda registrado como importado (no se responderá), sin análisis.
+    if (!canAnalyze) {
+      if (persist) updateComment(db, c.id, { decision: 'imported', reason: 'importación (sin análisis en esta cuenta)', extract_status: 'skipped' }, now());
+      summary.imported++;
+      log('imported', { reason: 'sin prompt de análisis' });
+      return;
+    }
+
     const input: CommentForAnalysis = {
       commentId: c.id,
+      accountId: deps.igUserId,
       mediaId: media.mediaId,
       username,
       igUserId,

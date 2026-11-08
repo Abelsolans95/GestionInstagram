@@ -1,4 +1,5 @@
 import { getComment, updateComment, type CommentRow } from '../db/comments.js';
+import { hasPrompt } from '../llm/prompts.js';
 import { ensureMedia, ensureQuestion, type AnalysisDeps } from './context.js';
 import { analyzeComment, storeAnalysis } from './extraction.js';
 import { errorMessage } from './log.js';
@@ -19,6 +20,9 @@ export async function reextractMedia(
   opts: { onlyFailed?: boolean; print?: (line: string) => void } = {},
 ): Promise<ReextractSummary> {
   const print = opts.print ?? (() => {});
+  if (!hasPrompt(deps.prompts, 'extract')) {
+    throw new Error('Esta cuenta no tiene prompt de análisis (prompts/cuentas/<cuenta>/extract.md): sus comentarios no se analizan');
+  }
   let media = await ensureMedia(deps, mediaId);
   media = await ensureQuestion(deps, media);
   const statuses = opts.onlyFailed ? ['failed'] : ['done', 'failed'];
@@ -33,6 +37,7 @@ export async function reextractMedia(
     const parent = row.parent_id ? getComment(deps.db, row.parent_id) : undefined;
     const input = {
       commentId: row.comment_id,
+      accountId: deps.igUserId,
       mediaId,
       username: row.username,
       igUserId: row.ig_user_id,

@@ -21,6 +21,8 @@ export interface ReviewRouteOptions {
   settings: Pick<ReplySettings, 'delayMinSec' | 'delayMaxSec' | 'reviewMode'>;
   /** Para despertar al worker cuando se reencolan comentarios. */
   onRequeued?: () => void;
+  /** Con varias cuentas: "@cuenta" de cada comentario (se muestra en la tarjeta). */
+  accountLabel?: (accountId: string | null) => string;
 }
 
 /** Página de revisión para el móvil: lista, edita, aprueba o rechaza las respuestas pendientes. */
@@ -37,7 +39,7 @@ export const reviewRoutes: FastifyPluginAsync<ReviewRouteOptions> = async (app, 
     const cards = items
       .map(
         (c) => `<div class="card">
-  <div class="muted">${esc(c.question ?? '(sin pregunta)')}${c.permalink ? ` · <a href="${esc(c.permalink)}" rel="noreferrer">vídeo</a>` : ''}</div>
+  <div class="muted">${opts.accountLabel ? `<b>${esc(opts.accountLabel(c.account_id))}</b> · ` : ''}${esc(c.question ?? '(sin pregunta)')}${c.permalink ? ` · <a href="${esc(c.permalink)}" rel="noreferrer">vídeo</a>` : ''}</div>
   <div><span class="label">@${esc(c.username ?? '?')}</span>: ${esc(c.text)}</div>
   ${c.answer_label ? `<div class="muted">etiqueta: ${esc(c.answer_label)}${c.character_name ? ` · personaje: ${esc(c.character_name)}` : ''}</div>` : ''}
   <form method="post" action="/review/${esc(c.comment_id)}/approve?token=${t}">

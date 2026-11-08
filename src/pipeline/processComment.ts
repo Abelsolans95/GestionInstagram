@@ -2,7 +2,8 @@ import { getComment, updateComment, type CommentRow } from '../db/comments.js';
 import type { CommentProcessor, ProcessOutcome } from '../worker/replyWorker.js';
 import { ensureMedia, ensureQuestion, getOwnIdentity, type AnalysisDeps, type MediaView } from './context.js';
 import { extractAndStore, type CommentForAnalysis } from './extraction.js';
-import { checkSpam, isOwnComment, sameTextCount } from './filters.js';
+import { hasPrompt } from '../llm/prompts.js';
+import { checkSpam, isOwnComment, sameTextCount, type OwnIdentity } from './filters.js';
 import { errorMessage } from './log.js';
 
 /** Paso de respuesta (fase e): decide si se responde, genera el texto y lo deja listo. */
@@ -21,6 +22,8 @@ export interface ReplyStepContext {
 
 export interface ProcessorDeps extends AnalysisDeps {
   replyStep: ReplyStep;
+  /** Tus otras cuentas: sus comentarios tampoco se responden ni se analizan. */
+  otherOwnAccounts?: () => OwnIdentity[];
 }
 
 /**
@@ -35,7 +38,9 @@ export function createCommentProcessor(deps: ProcessorDeps): CommentProcessor {
     }
 
     const own = await getOwnIdentity(deps);
-    if (isOwnComment({ igUserId: row.ig_user_id, username: row.username }, own)) {
+    const isMine = (c: { igUserId: string | null; username: string | null }) =>
+      isOwnComment(c, own) || (deps.otherOwnAccounts?.() ?? []).some((o) => isOwnComment(c, o));
+    if (isMine({ igUserId: row.ig_user_id, username: row.username })) {
       return {
         status: 'skipped',
         decision: 'own_comment',
@@ -65,7 +70,7 @@ export function createCommentProcessor(deps: ProcessorDeps): CommentProcessor {
         commented_at: commentedAt,
         ig_user_id: row.ig_user_id ?? c.from?.id ?? null,
       });
-      if (isOwnComment({ igUserId: row.ig_user_id ?? c.from?.id ?? null, username }, own)) {
+      if (isMine({ igUserId: row.ig_user_id ?? c.from?.id ?? null, username })) {
         return { status: 'skipped', decision: 'own_comment', reason: 'comentario de tu propia cuenta', patch: { extract_status: 'skipped' } };
       }
     }
@@ -112,6 +117,7 @@ export function createCommentProcessor(deps: ProcessorDeps): CommentProcessor {
     let extractError: string | null = null;
     const input: CommentForAnalysis = {
       commentId: row.comment_id,
+      accountId: deps.igUserId,
       mediaId: row.media_id,
       username,
       igUserId: row.ig_user_id,
@@ -119,12 +125,17 @@ export function createCommentProcessor(deps: ProcessorDeps): CommentProcessor {
       commentedAt,
       parent,
     };
-    try {
-      const r = await extractAndStore(deps, input, media);
-      label = r.answer_label;
-    } catch (err) {
-      extractError = `extracción: ${errorMessage(err)}`;
-      updateComment(deps.db, row.comment_id, { extract_status: 'failed', last_error: extractError });
+    if (!hasPrompt(deps.prompts, 'extract')) {
+      // Cuenta sin prompt de análisis: solo se responde.
+      updateComment(deps.db, row.comment_id, { extract_status: 'skipped' });
+    } else {
+      try {
+        const r = await extractAndStore(deps, input, media);
+        label = r.answer_label;
+      } catch (err) {
+        extractError = `extracción: ${errorMessage(err)}`;
+        updateComment(deps.db, row.comment_id, { extract_status: 'failed', last_error: extractError });
+      }
     }
 
     const out = await deps.replyStep({ row: current, media, threadId, parentId, parent, hidden, label, extractError });

@@ -178,15 +178,21 @@ export function sameTextCount(
 
 /**
  * Respuestas a quejas de "no salgo" que ya tiene esta persona (pendientes, programadas o
- * publicadas; las rechazadas en revisión no cuentan), en cualquier vídeo.
+ * publicadas; las rechazadas en revisión no cuentan), en cualquier vídeo de la cuenta.
  */
-export function complaintRepliesForUser(db: DB, username: string, excludeCommentId: string): number {
+export function complaintRepliesForUser(
+  db: DB,
+  username: string,
+  excludeCommentId: string,
+  accountId: string | null = null,
+): number {
   const row = db
     .prepare(
       `SELECT COUNT(*) AS n FROM comments
-       WHERE lower(username) = lower(?) AND reply_kind = 'complaint' AND comment_id != ?
+       WHERE lower(username) = lower(@username) AND reply_kind = 'complaint' AND comment_id != @exclude
+         AND (@account IS NULL OR account_id = @account)
          AND status IN ('pending_review', 'scheduled', 'publishing', 'replied')`,
     )
-    .get(username, excludeCommentId) as { n: number };
+    .get({ username, exclude: excludeCommentId, account: accountId }) as { n: number };
   return row.n;
 }

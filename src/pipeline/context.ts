@@ -1,7 +1,7 @@
 import { getMedia, setQuestion, upsertMedia, type MediaRow, type QuestionSource } from '../db/analysis.js';
 import { kvGet, kvSet, type DB } from '../db/index.js';
 import type { LlmClient } from '../llm/claude.js';
-import type { PromptStore } from '../llm/prompts.js';
+import { hasPrompt, type PromptStore } from '../llm/prompts.js';
 import { detectQuestion } from '../llm/question.js';
 import type { Logger } from '../logger.js';
 import { MetaApiError } from '../meta/http.js';
@@ -61,6 +61,7 @@ export function mediaUpsertFromApi(m: IgMedia, own: OwnIdentity) {
   const ts = m.timestamp ? Date.parse(m.timestamp) : NaN;
   return {
     mediaId: m.id,
+    accountId: own.userId,
     shortcode: m.shortcode ?? null,
     permalink: m.permalink ?? null,
     caption: m.caption ?? null,
@@ -72,13 +73,28 @@ export function mediaUpsertFromApi(m: IgMedia, own: OwnIdentity) {
   };
 }
 
+const identityKey = (igUserId: string) => `own_identity:${igUserId}`;
+
+/** Identidad guardada de una cuenta (también la de antes de tener varias cuentas, 'own_identity'). */
+function storedIdentity(db: DB, igUserId: string): (OwnIdentity & { fetchedAt: number }) | undefined {
+  const own = kvGet<OwnIdentity & { fetchedAt: number }>(db, identityKey(igUserId));
+  if (own) return own;
+  const legacy = kvGet<OwnIdentity & { fetchedAt: number }>(db, 'own_identity');
+  return legacy?.userId === igUserId ? legacy : undefined;
+}
+
+/** @usuario de una de tus cuentas tal como se leyó de Meta la última vez (o null). */
+export function cachedOwnUsername(db: DB, igUserId: string): string | null {
+  return storedIdentity(db, igUserId)?.username ?? null;
+}
+
 /** Tu cuenta (user_id + username), cacheada 24 h. Si Meta falla, se usa IG_USER_ID sin username. */
 export async function getOwnIdentity(
   deps: AnalysisDeps,
   opts: { persist?: boolean } = {},
 ): Promise<OwnIdentity> {
   const now = deps.now?.() ?? Date.now();
-  const cached = kvGet<OwnIdentity & { fetchedAt: number }>(deps.db, 'own_identity');
+  const cached = storedIdentity(deps.db, deps.igUserId);
   if (cached && cached.userId === deps.igUserId && now - cached.fetchedAt < IDENTITY_TTL_MS) {
     return { userId: cached.userId, username: cached.username };
   }
@@ -91,7 +107,7 @@ export async function getOwnIdentity(
       );
     }
     const identity = { userId: deps.igUserId, username: me.username?.toLowerCase() ?? null };
-    if (opts.persist !== false) kvSet(deps.db, 'own_identity', { ...identity, fetchedAt: now }, now);
+    if (opts.persist !== false) kvSet(deps.db, identityKey(deps.igUserId), { ...identity, fetchedAt: now }, now);
     return identity;
   } catch (err) {
     deps.logger.warn({ err: (err as Error).message }, 'no se pudo leer /me; se usa solo IG_USER_ID');
@@ -102,6 +118,7 @@ export async function getOwnIdentity(
 /**
  * Datos del vídeo (caption cacheado por media). Con persist=false (dry-run) no escribe nada.
  * Si Meta responde 4xx al leerlo (p. ej. un vídeo ajeno en el que te mencionan), se marca como ajeno.
+ * Con varias cuentas: un vídeo que ya consta como de OTRA de tus cuentas es ajeno para esta.
  */
 export async function ensureMedia(
   deps: AnalysisDeps,
@@ -111,7 +128,9 @@ export async function ensureMedia(
   const persist = opts.persist !== false;
   const now = deps.now?.() ?? Date.now();
   const row = getMedia(deps.db, mediaId);
-  if (row && !opts.known && now - row.fetched_at < MEDIA_TTL_MS) return toView(row);
+  const otherAccount = !!row?.account_id && row.account_id !== deps.igUserId;
+  if (row && otherAccount && row.is_own === 1) return { ...toView(row), isOwn: false };
+  if (row && !otherAccount && !opts.known && now - row.fetched_at < MEDIA_TTL_MS) return toView(row);
 
   const own = opts.own ?? (await getOwnIdentity(deps, { persist }));
   let upsert;
@@ -152,6 +171,9 @@ export async function ensureQuestion(
   opts: { persist?: boolean } = {},
 ): Promise<MediaView> {
   if (media.questionSource) return media;
+  // Cuenta sin prompts/cuentas/<cuenta>/question.md: sus vídeos no se analizan (no se guarda nada,
+  // así que si añades el prompt más adelante se detecta entonces).
+  if (!hasPrompt(deps.prompts, 'question')) return media;
   const question = await detectQuestion(deps.llm, deps.prompts, media.caption);
   const source: QuestionSource = question ? 'caption' : 'none';
   if (opts.persist !== false) setQuestion(deps.db, media.mediaId, question, source, deps.now?.());

@@ -32,6 +32,11 @@ function isUnknownFieldError(err: unknown): boolean {
   return err instanceof MetaApiError && err.status === 400 && err.code === 100;
 }
 
+/** "Object with ID … does not exist, cannot be loaded due to missing permissions…" (subcódigo 33). */
+function isMissingObject(err: unknown): boolean {
+  return err instanceof MetaApiError && (err.subcode === 33 || /does not exist|Unsupported get request/i.test(err.message));
+}
+
 export interface ReadClientOptions {
   graph: GraphContext;
   igUserId: string;
@@ -61,13 +66,20 @@ export function createReadClient(opts: ReadClientOptions): ReadClient {
     try {
       return await call();
     } catch (err) {
-      if (!degraded[kind] && isUnknownFieldError(err)) {
+      if (!degraded[kind] && isUnknownFieldError(err) && !isMissingObject(err)) {
         degraded[kind] = true;
-        warn(`Meta rechaza algún campo opcional de ${kind}; se sigue sin ellos`, {
-          optional: kind === 'media' ? MEDIA_OPTIONAL : COMMENT_OPTIONAL,
-          error: (err as Error).message,
-        });
-        return call();
+        try {
+          const res = await call();
+          warn(`Meta rechaza algún campo opcional de ${kind}; se sigue sin ellos`, {
+            optional: kind === 'media' ? MEDIA_OPTIONAL : COMMENT_OPTIONAL,
+            error: (err as Error).message,
+          });
+          return res;
+        } catch (again) {
+          // Tampoco sin los opcionales: no era por los campos (p. ej. otra cuenta no puede leerlo).
+          degraded[kind] = false;
+          throw again;
+        }
       }
       throw err;
     }

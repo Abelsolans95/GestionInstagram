@@ -128,4 +128,28 @@ export const MIGRATIONS: readonly string[] = [
   ALTER TABLE comments ADD COLUMN reply_kind TEXT;
   CREATE INDEX comments_user_kind_idx ON comments (username, reply_kind);
   `,
+
+  // 6 — varias cuentas de Instagram en el mismo servicio. Las filas anteriores se asignan a la
+  // cuenta principal al arrancar (assignLegacyRows, avisado con kv 'legacy_rows_pending'), porque
+  // aquí no se conoce su ID. Los participantes se recalculan entonces por cuenta: es una tabla
+  // derivada de comments.
+  `
+  INSERT INTO kv (key, value, updated_at)
+    SELECT 'legacy_rows_pending', 'true', 0
+    WHERE EXISTS (SELECT 1 FROM comments) OR EXISTS (SELECT 1 FROM media);
+  ALTER TABLE comments ADD COLUMN account_id TEXT;
+  CREATE INDEX comments_account_status_idx ON comments (account_id, status);
+  ALTER TABLE media ADD COLUMN account_id TEXT;
+  DROP TABLE participants;
+  CREATE TABLE participants (
+    account_id      TEXT NOT NULL,
+    username        TEXT NOT NULL,
+    ig_user_id      TEXT,
+    character_name  TEXT,
+    first_seen      INTEGER NOT NULL,
+    last_seen       INTEGER NOT NULL,
+    n_comments      INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (account_id, username)
+  );
+  `,
 ];

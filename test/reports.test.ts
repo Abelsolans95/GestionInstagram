@@ -21,7 +21,7 @@ let t = 1_000_000;
 
 function add(id: string, username: string, text: string, r: { label?: string; answer?: string; character?: string } = {}, mediaId = 'm1') {
   t += 1000;
-  insertCommentIfNew(db, { commentId: id, mediaId, parentId: null, parentChecked: true, igUserId: `ig-${username}`, username, text, commentedAt: t, source: 'import', status: 'imported' });
+  insertCommentIfNew(db, { commentId: id, accountId: IG_USER_ID, mediaId, parentId: null, parentChecked: true, igUserId: `ig-${username}`, username, text, commentedAt: t, source: 'import', status: 'imported' });
   storeAnalysis(
     db,
     { commentId: id, mediaId, username, igUserId: `ig-${username}`, text, commentedAt: t },

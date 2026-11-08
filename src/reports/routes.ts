@@ -3,7 +3,7 @@ import type { DB } from '../db/index.js';
 import { requestToken, requireToken } from './auth.js';
 import { mediaConversationsMarkdown } from './conversations.js';
 import { mediaReportCsv, participantsCsv } from './csv.js';
-import { mediaIndexHtml, mediaReportHtml, participantsHtml } from './html.js';
+import { mediaIndexHtml, mediaReportHtml, participantsHtml, type AccountLabel } from './html.js';
 import { mediaReportMarkdown } from './markdown.js';
 import { buildMediaReport, buildParticipantsReport, listReportMedia } from './queries.js';
 import { buildVotes, votesErrorHtml, votesHtml, type VotesDeps } from './votes.js';
@@ -11,15 +11,22 @@ import { buildVotes, votesErrorHtml, votesHtml, type VotesDeps } from './votes.j
 export interface ReportOptions {
   db: DB;
   reportToken: string;
-  /** Para contar votos con me gusta (lee de Meta). Sin esto, /report/:mediaId/votos da 404. */
-  votes?: VotesDeps;
+  /**
+   * Para contar votos con me gusta (lee de Meta con la cuenta del vídeo). Sin esto,
+   * /report/:mediaId/votos da 404.
+   */
+  votes?: VotesDeps | ((mediaId: string) => VotesDeps);
+  /** Tus cuentas si hay más de una (la principal primero); vacío o sin esto, una sola. */
+  accounts?: () => AccountLabel[];
 }
 
 export const reportRoutes: FastifyPluginAsync<ReportOptions> = async (app, opts) => {
   app.addHook('onRequest', requireToken(opts.reportToken));
 
   app.get('/report', async (req, reply) => {
-    return reply.type('text/html; charset=utf-8').send(mediaIndexHtml(listReportMedia(opts.db), requestToken(req)!));
+    return reply
+      .type('text/html; charset=utf-8')
+      .send(mediaIndexHtml(listReportMedia(opts.db), requestToken(req)!, opts.accounts?.() ?? []));
   });
 
   app.get<{ Params: { mediaId: string }; Querystring: { format?: string } }>('/report/:mediaId', async (req, reply) => {
@@ -52,7 +59,8 @@ export const reportRoutes: FastifyPluginAsync<ReportOptions> = async (app, opts)
     const token = requestToken(req)!;
     if (!opts.votes) return reply.code(404).type('text/plain').send('Votos no disponibles');
     try {
-      const votes = await buildVotes(opts.db, opts.votes, req.params.mediaId);
+      const deps = typeof opts.votes === 'function' ? opts.votes(req.params.mediaId) : opts.votes;
+      const votes = await buildVotes(opts.db, deps, req.params.mediaId);
       if (!votes) return reply.code(404).type('text/plain').send('Vídeo no encontrado');
       return reply.type('text/html; charset=utf-8').send(votesHtml(votes, token));
     } catch (err) {
@@ -61,14 +69,23 @@ export const reportRoutes: FastifyPluginAsync<ReportOptions> = async (app, opts)
     }
   });
 
-  app.get<{ Querystring: { format?: string } }>('/participants', async (req, reply) => {
-    const report = buildParticipantsReport(opts.db);
+  app.get<{ Querystring: { format?: string; cuenta?: string } }>('/participants', async (req, reply) => {
+    // Con varias cuentas, los participantes son de una cuenta (?cuenta=<id o usuario>; por defecto la principal).
+    const list = opts.accounts?.() ?? [];
+    const wanted = req.query.cuenta?.trim().replace(/^@/, '').toLowerCase();
+    const current = list.length
+      ? (list.find((a) => a.id === wanted || a.label.replace(/^@/, '').toLowerCase() === wanted) ?? list[0]!)
+      : null;
+    const report = buildParticipantsReport(opts.db, current?.id ?? null);
     if (req.query.format === 'csv') {
+      const suffix = current ? `-${current.label.replace(/^@/, '').replace(/[^\w.-]/g, '')}` : '';
       return reply
         .type('text/csv; charset=utf-8')
-        .header('content-disposition', 'attachment; filename="participantes.csv"')
+        .header('content-disposition', `attachment; filename="participantes${suffix}.csv"`)
         .send(participantsCsv(report));
     }
-    return reply.type('text/html; charset=utf-8').send(participantsHtml(report, requestToken(req)!));
+    return reply
+      .type('text/html; charset=utf-8')
+      .send(participantsHtml(report, requestToken(req)!, current ? { list, current } : null));
   });
 };

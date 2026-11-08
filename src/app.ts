@@ -1,11 +1,8 @@
 import Fastify, { type FastifyBaseLogger, type FastifyInstance } from 'fastify';
-import type { DB } from './db/index.js';
 import type { Logger } from './logger.js';
-import type { ReplySettings } from './pipeline/replyStep.js';
 import { requireToken } from './reports/auth.js';
-import { reportRoutes } from './reports/routes.js';
-import type { VotesDeps } from './reports/votes.js';
-import { reviewRoutes } from './review/routes.js';
+import { reportRoutes, type ReportOptions } from './reports/routes.js';
+import { reviewRoutes, type ReviewRouteOptions } from './review/routes.js';
 import { webhookRoutes, type EnqueueFn } from './webhook/routes.js';
 
 export interface AppDeps {
@@ -16,14 +13,9 @@ export interface AppDeps {
     enqueue: EnqueueFn;
   };
   /** Informes protegidos con REPORT_TOKEN (opcional para tests del webhook). */
-  reports?: { db: DB; reportToken: string; votes?: VotesDeps };
+  reports?: ReportOptions;
   /** Página de revisión (mismo token que los informes). */
-  review?: {
-    db: DB;
-    reportToken: string;
-    settings: Pick<ReplySettings, 'delayMinSec' | 'delayMaxSec' | 'reviewMode'>;
-    onRequeued?: () => void;
-  };
+  review?: ReviewRouteOptions;
   /** Estado del servicio en JSON (mismo token). */
   status?: { reportToken: string; get: () => Record<string, unknown> };
 }

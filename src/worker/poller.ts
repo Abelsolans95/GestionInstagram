@@ -23,6 +23,10 @@ export interface PollerOptions {
   logger: Logger;
   intervalSec: number;
   mediaCount: number;
+  /** Cuenta que se revisa (con varias cuentas, un poller por cuenta). */
+  accountId?: string;
+  /** Clave kv de "desde cuándo" (una por cuenta). */
+  sinceKey?: string;
   now?: () => number;
 }
 
@@ -33,12 +37,13 @@ export function createPoller(opts: PollerOptions) {
   let timer: NodeJS.Timeout | null = null;
   let busy = false;
 
+  const sinceKey = opts.sinceKey ?? 'poll_since';
   function since(): number {
-    const v = kvGet<number>(opts.db, 'poll_since');
+    const v = kvGet<number>(opts.db, sinceKey);
     if (v) return v;
     const t = now();
-    kvSet(opts.db, 'poll_since', t, t);
-    opts.logger.info({ since: new Date(t).toISOString() }, 'polling activado: solo comentarios desde ahora');
+    kvSet(opts.db, sinceKey, t, t);
+    opts.logger.info({ since: new Date(t).toISOString(), account_id: opts.accountId }, 'polling activado: solo comentarios desde ahora');
     return t;
   }
 
@@ -52,7 +57,7 @@ export function createPoller(opts: PollerOptions) {
       fromUsername: c.username ?? c.from?.username ?? null,
       parentId,
       mediaProductType: null,
-      accountId: null,
+      accountId: opts.accountId ?? null,
       sentAt: Number.isNaN(ts) ? null : Math.floor(ts / 1000),
     };
   }

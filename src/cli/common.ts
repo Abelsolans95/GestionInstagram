@@ -1,4 +1,5 @@
 import '../env.js';
+import type { Account } from '../accounts.js';
 import { getMedia, getMediaByShortcode, upsertMedia } from '../db/analysis.js';
 import { loadConfig } from '../config.js';
 import { createLogger } from '../logger.js';
@@ -18,8 +19,16 @@ export function shortcodeFromUrl(input: string): string | null {
   return m?.[1] ?? null;
 }
 
-/** Acepta un media-id numérico o una URL del vídeo y devuelve el media-id. */
-export async function resolveMediaId(s: CoreServices, input: string): Promise<string> {
+/** --cuenta <@usuario|id>: una de tus cuentas (por defecto, la principal). */
+export function accountArg(s: CoreServices, ref: string | undefined): Account {
+  return ref ? s.accounts.find(ref) : s.accounts.primary;
+}
+
+/**
+ * Acepta un media-id numérico o una URL del vídeo y devuelve el media-id. Con una URL que aún no
+ * está guardada, busca en los vídeos de la cuenta indicada o, si no se indica, de todas.
+ */
+export async function resolveMediaId(s: CoreServices, input: string, account?: Account): Promise<string> {
   const trimmed = input.trim();
   if (/^\d+$/.test(trimmed)) return trimmed;
   const shortcode = shortcodeFromUrl(trimmed);
@@ -27,12 +36,19 @@ export async function resolveMediaId(s: CoreServices, input: string): Promise<st
   const cached = getMediaByShortcode(s.db, shortcode);
   if (cached) return cached.media_id;
   // No está en caché: recorremos tus vídeos (GET /{ig-user-id}/media) hasta encontrarlo.
-  const own = await getOwnIdentity(s.analysis);
-  for await (const m of s.read.listMedia()) {
-    if (!getMedia(s.db, m.id)) upsertMedia(s.db, mediaUpsertFromApi(m, own));
-    if (m.shortcode === shortcode) return m.id;
+  for (const a of account ? [account] : s.accounts.all) {
+    const own = await getOwnIdentity(a.analysis);
+    for await (const m of a.read.listMedia()) {
+      if (!getMedia(s.db, m.id)) upsertMedia(s.db, mediaUpsertFromApi(m, own));
+      if (m.shortcode === shortcode) return m.id;
+    }
   }
   throw new Error(`No encuentro ningún vídeo tuyo con shortcode ${shortcode}`);
+}
+
+/** La cuenta dueña de un vídeo (o la indicada con --cuenta). */
+export function accountForMedia(s: CoreServices, mediaId: string, explicit?: Account): Account {
+  return explicit ?? s.accounts.forMedia(mediaId);
 }
 
 export function fmtDate(ms: number | null): string {

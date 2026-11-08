@@ -1,5 +1,12 @@
 import type { MediaReport, MediaSummary, ParticipantsReport } from './queries.js';
 
+/** Una de tus cuentas, para separar informes cuando hay varias. */
+export interface AccountLabel {
+  id: string;
+  /** "@usuario" (o el ID si aún no se conoce). */
+  label: string;
+}
+
 export function esc(v: unknown): string {
   return String(v ?? '')
     .replace(/&/g, '&amp;')
@@ -51,9 +58,23 @@ export function nav(token: string): string {
   return `<nav class="muted"><a href="/report?token=${t}">Vídeos</a><a href="/participants?token=${t}">Participantes</a><a href="/review?token=${t}">Revisión</a></nav>`;
 }
 
-export function mediaIndexHtml(items: MediaSummary[], token: string): string {
+export function mediaIndexHtml(items: MediaSummary[], token: string, accounts: AccountLabel[] = []): string {
+  if (accounts.length > 1) {
+    // Varias cuentas: un bloque por cuenta (la principal primero).
+    const sections = accounts
+      .map((a) => {
+        const mine = items.filter((m) => (m.accountId ?? accounts[0]!.id) === a.id);
+        return `<h2>${esc(a.label)}</h2>${mediaCards(mine, token)}`;
+      })
+      .join('\n');
+    return page('Vídeos', `${nav(token)}<h1>Vídeos</h1>${sections}`);
+  }
+  return page('Vídeos', `${nav(token)}<h1>Vídeos</h1>${mediaCards(items, token)}`);
+}
+
+function mediaCards(items: MediaSummary[], token: string): string {
   const t = encodeURIComponent(token);
-  const list = items.length
+  return items.length
     ? items
         .map(
           (m) => `<div class="card">
@@ -63,7 +84,6 @@ export function mediaIndexHtml(items: MediaSummary[], token: string): string {
         )
         .join('\n')
     : '<p class="muted">Todavía no hay vídeos analizados.</p>';
-  return page('Vídeos', `${nav(token)}<h1>Vídeos</h1>${list}`);
 }
 
 export function mediaReportHtml(r: MediaReport, token: string): string {
@@ -95,8 +115,23 @@ ${non}`,
   );
 }
 
-export function participantsHtml(r: ParticipantsReport, token: string): string {
+export function participantsHtml(
+  r: ParticipantsReport,
+  token: string,
+  accounts: { list: AccountLabel[]; current: AccountLabel } | null = null,
+): string {
   const t = encodeURIComponent(token);
+  const cuenta = accounts ? `&cuenta=${encodeURIComponent(accounts.current.id)}` : '';
+  const switcher =
+    accounts && accounts.list.length > 1
+      ? `<p class="muted">Cuenta: ${accounts.list
+          .map((a) =>
+            a.id === accounts.current.id
+              ? `<b>${esc(a.label)}</b>`
+              : `<a href="/participants?cuenta=${encodeURIComponent(a.id)}&token=${t}">${esc(a.label)}</a>`,
+          )
+          .join(' · ')}</p>`
+      : '';
   const cards = r.participants
     .map((p) => {
       const answers = r.media
@@ -116,8 +151,9 @@ export function participantsHtml(r: ParticipantsReport, token: string): string {
   return page(
     'Participantes',
     `${nav(token)}
-<h1>Participantes (${r.participants.length})</h1>
-<p class="muted"><a href="/participants?format=csv&token=${t}">CSV</a> · * respondió varias veces; cuenta la última.</p>
+<h1>Participantes (${r.participants.length})${accounts && accounts.list.length > 1 ? ` · ${esc(accounts.current.label)}` : ''}</h1>
+${switcher}
+<p class="muted"><a href="/participants?format=csv${cuenta}&token=${t}">CSV</a> · * respondió varias veces; cuenta la última.</p>
 <input type="search" placeholder="Buscar @usuario o personaje" oninput="const q=this.value.toLowerCase();document.querySelectorAll('[data-q]').forEach(e=>e.style.display=e.dataset.q.includes(q)?'':'none')">
 ${cards || '<p class="muted">Todavía no hay participantes.</p>'}`,
   );

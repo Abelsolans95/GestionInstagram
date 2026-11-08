@@ -10,6 +10,8 @@ import type { AnalysisDeps, MediaView } from './context.js';
  */
 export interface CommentForAnalysis {
   commentId: string;
+  /** Cuenta del vídeo (para la ficha del participante). Si falta, la del comentario guardado. */
+  accountId?: string | null;
   mediaId: string;
   username: string | null;
   igUserId: string | null;
@@ -70,7 +72,17 @@ export function storeAnalysis(
     } else {
       deleteAnswer(db, c.commentId);
     }
-    if (username) refreshParticipant(db, username);
+    if (username) {
+      const stored = db.prepare('SELECT account_id FROM comments WHERE comment_id = ?').get(c.commentId) as
+        | { account_id: string | null }
+        | undefined;
+      const media = db.prepare('SELECT account_id FROM media WHERE media_id = ? AND is_own = 1').get(c.mediaId) as
+        | { account_id: string | null }
+        | undefined;
+      const accountId = c.accountId ?? stored?.account_id ?? media?.account_id ?? null;
+      if (accountId && stored && !stored.account_id) updateComment(db, c.commentId, { account_id: accountId }, now);
+      if (accountId) refreshParticipant(db, accountId, username);
+    }
   })();
 }
 
@@ -80,6 +92,6 @@ export async function extractAndStore(
   media: MediaView,
 ): Promise<ExtractResult> {
   const result = await analyzeComment(deps, c, media);
-  storeAnalysis(deps.db, c, media, result, deps.now?.());
+  storeAnalysis(deps.db, { ...c, accountId: c.accountId ?? deps.igUserId }, media, result, deps.now?.());
   return result;
 }

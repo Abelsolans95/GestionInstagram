@@ -21,6 +21,7 @@ export function testConfig(overrides: Partial<AppConfig['replies']> = {}): AppCo
       appId: null,
       accessToken: 'env-token',
       igUserId: IG_USER_ID,
+      accounts: [{ id: IG_USER_ID, accessToken: 'env-token' }],
       apiVersion: 'v27.0',
       graphUrl: 'https://graph.facebook.com',
       login: 'unified',

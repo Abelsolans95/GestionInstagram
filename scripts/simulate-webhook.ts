@@ -64,7 +64,8 @@ async function send(): Promise<void> {
       username: values.username,
       userId: values['user-id'],
       parentId: values.parent,
-      accountId: process.env.IG_USER_ID,
+      // Con varias cuentas (IG_USER_ID=id1,id2), la primera.
+      accountId: process.env.IG_USER_ID?.split(',')[0]?.trim(),
     },
     values.shape as PayloadShape,
   );

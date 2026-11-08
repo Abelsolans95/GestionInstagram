@@ -4,17 +4,18 @@
  */
 import { parseArgs } from 'node:util';
 import { reextractMedia } from '../pipeline/reextract.js';
-import { bootstrapCli, resolveMediaId, runCli } from './common.js';
+import { accountArg, accountForMedia, bootstrapCli, resolveMediaId, runCli } from './common.js';
 
 runCli(async () => {
   const { values, positionals } = parseArgs({
     allowPositionals: true,
-    options: { 'only-failed': { type: 'boolean', default: false } },
+    options: { 'only-failed': { type: 'boolean', default: false }, cuenta: { type: 'string' } },
   });
-  if (!positionals[0]) throw new Error('Uso: pnpm reextract <media-id|url> [--only-failed]');
+  if (!positionals[0]) throw new Error('Uso: pnpm reextract <media-id|url> [--only-failed] [--cuenta <@usuario|id>]');
   const s = bootstrapCli();
-  const mediaId = await resolveMediaId(s, positionals[0]);
-  const r = await reextractMedia(s.analysis, mediaId, {
+  const explicit = values.cuenta ? accountArg(s, values.cuenta) : undefined;
+  const mediaId = await resolveMediaId(s, positionals[0], explicit);
+  const r = await reextractMedia(accountForMedia(s, mediaId, explicit).analysis, mediaId, {
     onlyFailed: values['only-failed'],
     print: (l) => console.log(l),
   });

@@ -38,7 +38,14 @@ const envSchema = z
     IG_APP_ID: z.string().trim().optional(),
     IG_APP_SECRET: secret,
     IG_ACCESS_TOKEN: secret,
-    IG_USER_ID: z.string().trim().regex(/^\d+$/, 'debe ser numérico (user_id de GET /me)'),
+    /**
+     * ID de tu cuenta de Instagram. Para gestionar varias cuentas, sus IDs separados por comas: la
+     * primera es la principal (la de los prompts de prompts/*.md).
+     */
+    IG_USER_ID: z
+      .string()
+      .trim()
+      .regex(/^\d+(\s*,\s*\d+)*$/, 'debe ser numérico (o varios separados por comas)'),
     WEBHOOK_VERIFY_TOKEN: secret,
     META_API_VERSION: z.string().trim().regex(/^v\d+\.\d+$/, 'formato vNN.N').default('v27.0'),
     /**
@@ -91,6 +98,31 @@ const envSchema = z
 
 export type Env = z.infer<typeof envSchema>;
 
+export interface AccountConfig {
+  /** ID de la cuenta de Instagram (el de /me/assigned_instagram_accounts). */
+  id: string;
+  /** IG_ACCESS_TOKEN_<id> si existe; si no, IG_ACCESS_TOKEN. */
+  accessToken: string;
+}
+
+/**
+ * Cuentas de IG_USER_ID (sin repetir). Cada una usa IG_ACCESS_TOKEN_<id> si existe (por si el token
+ * de una cuenta no sirve para las demás) y, si no, IG_ACCESS_TOKEN.
+ */
+function parseAccounts(ids: string, defaultToken: string, env: NodeJS.ProcessEnv): AccountConfig[] {
+  const unique = [...new Set(ids.split(',').map((x) => x.trim()).filter(Boolean))];
+  const problems: string[] = [];
+  const accounts = unique.map((id) => {
+    const own = env[`IG_ACCESS_TOKEN_${id}`]?.trim();
+    if (own !== undefined && own !== '' && /\s/.test(own)) {
+      problems.push(`  - IG_ACCESS_TOKEN_${id}: contiene espacios o saltos de línea: déjala solo con su valor`);
+    }
+    return { id, accessToken: own || defaultToken };
+  });
+  if (problems.length) throw new Error(`Configuración inválida. Revisa las variables de entorno:\n${problems.join('\n')}`);
+  return accounts;
+}
+
 export interface AppConfig {
   nodeEnv: Env['NODE_ENV'];
   port: number;
@@ -100,8 +132,11 @@ export interface AppConfig {
   webhook: { appSecret: string; verifyToken: string };
   meta: {
     appId: string | null;
+    /** Token y cuenta principal (la primera de IG_USER_ID). */
     accessToken: string;
     igUserId: string;
+    /** Todas las cuentas gestionadas, la principal primero. */
+    accounts: AccountConfig[];
     apiVersion: string;
     graphUrl: string;
     login: 'unified' | 'instagram';
@@ -129,6 +164,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     throw new Error(`Configuración inválida. Revisa las variables de entorno:\n${problems}`);
   }
   const e = parsed.data;
+  const accounts = parseAccounts(e.IG_USER_ID, e.IG_ACCESS_TOKEN, env);
   return {
     nodeEnv: e.NODE_ENV,
     port: e.PORT,
@@ -138,8 +174,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     webhook: { appSecret: e.IG_APP_SECRET, verifyToken: e.WEBHOOK_VERIFY_TOKEN },
     meta: {
       appId: e.IG_APP_ID || null,
-      accessToken: e.IG_ACCESS_TOKEN,
-      igUserId: e.IG_USER_ID,
+      accessToken: accounts[0]!.accessToken,
+      igUserId: accounts[0]!.id,
+      accounts,
       apiVersion: e.META_API_VERSION,
       graphUrl: (
         e.META_GRAPH_URL ?? (e.META_LOGIN === 'instagram' ? 'https://graph.instagram.com' : 'https://graph.facebook.com')

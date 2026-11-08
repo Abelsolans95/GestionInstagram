@@ -2,8 +2,9 @@
  * Publicador del worker de respuestas: el ÚNICO módulo que usa el cliente de escritura de Meta.
  *
  *  - Publica las respuestas 'scheduled' cuyo publish_at (ahora + delay aleatorio) ya ha pasado.
- *  - Respeta MAX_REPLIES_PER_HOUR en una ventana móvil de 60 min; lo que no cabe espera.
- *  - Publica como mucho una por ciclo (cada ~10 s) para no soltar ráfagas.
+ *  - Respeta MAX_REPLIES_PER_HOUR en una ventana móvil de 60 min (por cuenta); lo que no cabe espera.
+ *  - Publica como mucho una por cuenta y ciclo (cada ~10 s) para no soltar ráfagas.
+ *  - Cada cuenta publica con su token, sobre sus propios comentarios.
  *  - Nunca publica un comentario importado.
  *  - Ante un fallo ambiguo (sin respuesta de Meta, 5xx), antes de reintentar comprueba si la
  *    respuesta ya se publicó, para no duplicarla. Tras 3 intentos, 'failed'.
@@ -19,14 +20,26 @@ import { errorMessage, logCommentOutcome } from '../pipeline/log.js';
 const HOUR_MS = 3_600_000;
 export const MAX_PUBLISH_ATTEMPTS = 3;
 
-export interface PublisherOptions {
-  db: DB;
+/** Una de tus cuentas, tal como la necesita el publicador. */
+export interface PublisherAccount {
+  id: string;
   graph: GraphContext;
   read: ReadClient;
-  logger: Logger;
-  maxPerHour: number;
-  igUserId: string;
   ownUsername: () => string | null;
+}
+
+export interface PublisherOptions {
+  db: DB;
+  logger: Logger;
+  /** Tope por cuenta en una ventana móvil de 60 min. */
+  maxPerHour: number;
+  /** Tus cuentas, la principal primero (las respuestas sin cuenta son de la principal). */
+  accounts?: PublisherAccount[];
+  /** Una sola cuenta (si no se pasa `accounts`). */
+  graph?: GraphContext;
+  read?: ReadClient;
+  igUserId?: string;
+  ownUsername?: () => string | null;
   /** Dar me gusta al comentario al que se responde (LIKE_REPLIED_COMMENTS). */
   likeComments?: boolean;
   tickMs?: number;
@@ -34,11 +47,12 @@ export interface PublisherOptions {
 }
 
 export interface Publisher {
-  /** Un ciclo: publica como mucho una respuesta. Devuelve cuántas ha publicado (0 o 1). */
+  /** Un ciclo: publica como mucho una respuesta por cuenta. Devuelve cuántas ha publicado. */
   tick(): Promise<number>;
   /** Recupera las que quedaron en 'publishing' por un reinicio. */
   recover(): Promise<void>;
-  repliesLastHour(): number;
+  /** Respuestas de la última hora (de una cuenta o, sin argumento, de todas). */
+  repliesLastHour(accountId?: string): number;
   start(): void;
   stop(): Promise<void>;
 }
@@ -70,19 +84,34 @@ export function createPublisher(opts: PublisherOptions): Publisher {
   const { db, logger } = opts;
   const now = opts.now ?? Date.now;
   const tickMs = opts.tickMs ?? 10_000;
-  const write: WriteClient = createWriteClient(opts.graph, opts.igUserId);
+  const accounts: PublisherAccount[] = opts.accounts?.length
+    ? opts.accounts
+    : [
+        {
+          id: opts.igUserId ?? '',
+          graph: opts.graph!,
+          read: opts.read!,
+          ownUsername: opts.ownUsername ?? (() => null),
+        },
+      ];
+  if (!accounts.every((a) => a.id && a.graph && a.read)) throw new Error('publicador: falta la cuenta (graph, read e igUserId)');
+  const primaryId = accounts[0]!.id;
+  const writers = new Map<string, WriteClient>(accounts.map((a) => [a.id, createWriteClient(a.graph, a.id)]));
   // Si Meta rechaza los me gusta por permisos o por el tipo de login, se dejan de intentar.
   let likesDisabled = !opts.likeComments;
   let timer: NodeJS.Timeout | null = null;
   let running: Promise<unknown> | null = null;
-  let capLogged = false;
+  const capLogged = new Set<string>();
 
   const countLastHour = db.prepare(
-    "SELECT COUNT(*) AS n FROM comments WHERE replied_at >= ? OR status = 'publishing'",
+    `SELECT COUNT(*) AS n FROM comments
+     WHERE (replied_at >= @since OR status = 'publishing')
+       AND (@account IS NULL OR COALESCE(account_id, @primary) = @account)`,
   );
   const nextDue = db.prepare(
     `SELECT comment_id FROM comments
-     WHERE status = 'scheduled' AND source != 'import' AND publish_at IS NOT NULL AND publish_at <= ?
+     WHERE status = 'scheduled' AND source != 'import' AND publish_at IS NOT NULL AND publish_at <= @now
+       AND COALESCE(account_id, @primary) = @account
      ORDER BY publish_at LIMIT 1`,
   );
   const claim = db.prepare(
@@ -90,17 +119,22 @@ export function createPublisher(opts: PublisherOptions): Publisher {
      WHERE comment_id = ? AND status = 'scheduled' AND source != 'import' RETURNING *`,
   );
 
-  function repliesLastHour(): number {
-    return (countLastHour.get(now() - HOUR_MS) as { n: number }).n;
+  function repliesLastHour(accountId?: string): number {
+    return (countLastHour.get({ since: now() - HOUR_MS, account: accountId ?? null, primary: primaryId }) as { n: number }).n;
   }
+
+  const accountOf = (row: CommentRow): PublisherAccount | undefined =>
+    accounts.find((a) => a.id === (row.account_id ?? primaryId));
 
   /** ¿Ya existe en el hilo una respuesta nuestra con este texto? (para no duplicar) */
   async function alreadyPublished(row: CommentRow): Promise<string | null> {
     if (!row.reply_target_id || !row.reply_text) return null;
-    const own = opts.ownUsername()?.toLowerCase() ?? null;
-    for await (const r of opts.read.listReplies(row.reply_target_id)) {
+    const account = accountOf(row);
+    if (!account) throw new Error(`la cuenta ${row.account_id} ya no está en IG_USER_ID`);
+    const own = account.ownUsername()?.toLowerCase() ?? null;
+    for await (const r of account.read.listReplies(row.reply_target_id)) {
       const mine =
-        (r.from?.id && r.from.id === opts.igUserId) ||
+        (r.from?.id && r.from.id === account.id) ||
         (own !== null && (r.username ?? r.from?.username ?? '').toLowerCase() === own);
       if (mine && (r.text ?? '').trim() === row.reply_text.trim()) return r.id;
     }
@@ -123,7 +157,7 @@ export function createPublisher(opts: PublisherOptions): Publisher {
   }
 
   /** Me gusta al comentario del seguidor. Nunca hace fallar la respuesta. */
-  async function likeIfEnabled(row: CommentRow): Promise<void> {
+  async function likeIfEnabled(row: CommentRow, write: WriteClient): Promise<void> {
     if (likesDisabled) return;
     try {
       await write.likeComment(row.comment_id);
@@ -144,14 +178,14 @@ export function createPublisher(opts: PublisherOptions): Publisher {
     }
   }
 
-  async function publish(row: CommentRow): Promise<number> {
+  async function publish(row: CommentRow, write: WriteClient): Promise<number> {
     const started = Date.now();
     const target = row.reply_target_id ?? row.comment_id;
     try {
       if (!row.reply_text) throw new Error('sin texto de respuesta');
       const res = await write.replyToComment(target, row.reply_text);
       markReplied(row, res.id, started);
-      await likeIfEnabled(row);
+      await likeIfEnabled(row, write);
       return 1;
     } catch (err) {
       const kind = classify(err);
@@ -221,19 +255,27 @@ export function createPublisher(opts: PublisherOptions): Publisher {
     }
   }
 
-  async function tick(): Promise<number> {
-    const used = repliesLastHour();
+  async function tickAccount(account: PublisherAccount): Promise<number> {
+    const used = repliesLastHour(account.id);
     if (used >= opts.maxPerHour) {
-      if (!capLogged) logger.info({ used, max: opts.maxPerHour }, 'tope de respuestas por hora alcanzado; esperando');
-      capLogged = true;
+      if (!capLogged.has(account.id)) {
+        logger.info({ used, max: opts.maxPerHour, account_id: account.id }, 'tope de respuestas por hora alcanzado; esperando');
+      }
+      capLogged.add(account.id);
       return 0;
     }
-    capLogged = false;
-    const due = nextDue.get(now()) as { comment_id: string } | undefined;
+    capLogged.delete(account.id);
+    const due = nextDue.get({ now: now(), account: account.id, primary: primaryId }) as { comment_id: string } | undefined;
     if (!due) return 0;
     const row = claim.get(now(), due.comment_id) as CommentRow | undefined;
     if (!row) return 0;
-    return publish(row);
+    return publish(row, writers.get(account.id)!);
+  }
+
+  async function tick(): Promise<number> {
+    let n = 0;
+    for (const account of accounts) n += await tickAccount(account);
+    return n;
   }
 
   async function recover(): Promise<void> {
@@ -268,7 +310,7 @@ export function createPublisher(opts: PublisherOptions): Publisher {
       void running.finally(() => {
         running = null;
       });
-      logger.info({ tickMs, maxPerHour: opts.maxPerHour }, 'publicador arrancado');
+      logger.info({ tickMs, maxPerHour: opts.maxPerHour, accounts: accounts.length }, 'publicador arrancado');
     },
     async stop() {
       if (timer) clearInterval(timer);

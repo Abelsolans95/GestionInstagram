@@ -16,6 +16,8 @@ export type CommentSource = 'webhook' | 'import' | 'poll';
 
 export interface CommentRow {
   comment_id: string;
+  /** Cuenta de Instagram a la que pertenece el vídeo (null = aún no se sabe). */
+  account_id: string | null;
   media_id: string;
   parent_id: string | null;
   parent_checked: number;
@@ -51,6 +53,8 @@ export interface CommentRow {
 
 export interface NewComment {
   commentId: string;
+  /** Cuenta que lo recibe (entry.id del webhook si es una de las tuyas). null = la decide el worker. */
+  accountId?: string | null;
   mediaId: string;
   parentId: string | null;
   parentChecked: boolean;
@@ -70,13 +74,14 @@ export function insertCommentIfNew(db: DB, c: NewComment, now = Date.now()): boo
   const res = db
     .prepare(
       `INSERT OR IGNORE INTO comments (
-         comment_id, media_id, parent_id, parent_checked, thread_id, ig_user_id, username, text,
+         comment_id, account_id, media_id, parent_id, parent_checked, thread_id, ig_user_id, username, text,
          commented_at, source, status, created_at, updated_at)
-       VALUES (@commentId, @mediaId, @parentId, @parentChecked, @threadId, @igUserId, @username,
+       VALUES (@commentId, @accountId, @mediaId, @parentId, @parentChecked, @threadId, @igUserId, @username,
          @text, @commentedAt, @source, @status, @now, @now)`,
     )
     .run({
       ...c,
+      accountId: c.accountId ?? null,
       // Los usernames de Instagram no distinguen mayúsculas: se guardan en minúscula.
       username: c.username ? c.username.toLowerCase() : null,
       parentChecked: c.parentChecked ? 1 : 0,

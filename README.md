@@ -271,9 +271,32 @@ envía `Authorization: Bearer TU_REPORT_TOKEN`.
 | `GET /report` | Índice de vídeos con su pregunta |
 | `GET /report/:mediaId` | La pregunta y las respuestas agrupadas por etiqueta, ordenadas por número de personas (`herrero (3): @a, @b, @c`); al final, los comentarios que no responden. `?format=csv`, `?format=md`, `?format=conversaciones` (cada hilo con tus respuestas marcadas, en Markdown) |
 | `GET /report/:mediaId/votos` | Votaciones con me gusta: lee de Meta en ese momento los me gusta (`like_count`) de tus comentarios principales del vídeo (uno por candidato u opción), los ordena y dice quién va ganando |
-| `GET /participants` | Ficha por seguidor: @usuario, nombre de personaje y su respuesta en cada vídeo. `?format=csv` |
+| `GET /participants` | Ficha por seguidor: @usuario, nombre de personaje y su respuesta en cada vídeo. `?format=csv`; con varias cuentas, `?cuenta=<usuario>` |
 | `GET /review` | Respuestas pendientes de aprobar |
 | `GET /status` | Estado en JSON: comentarios por estado, respuestas en la última hora, token |
+
+## Varias cuentas de Instagram
+
+Un mismo servicio puede responder en varias cuentas tuyas: pon sus IDs en `IG_USER_ID` separados
+por comas (`IG_USER_ID=17841400000000001,17841400000000002`). La primera es la **principal**.
+
+- **Token**: todas usan `IG_ACCESS_TOKEN` salvo que exista `IG_ACCESS_TOKEN_<id>` para alguna.
+  Con el login unificado un mismo token de usuario del sistema puede valer para varias cuentas:
+  compruébalo con `GET /me/assigned_instagram_accounts` (salen todas las cuentas a las que llega).
+- **Webhook**: el mismo (una sola URL). Cada cuenta hay que suscribirla con su propio
+  `POST /{id}/subscribed_apps?subscribed_fields=comments`. Cada comentario se asigna a la cuenta
+  de `entry.id`; si no es ninguna de `IG_USER_ID`, se averigua por el dueño del vídeo.
+- **Prompts**: la principal usa `prompts/*.md`. Cada otra cuenta usa los de
+  `prompts/cuentas/<usuario>/` (ver `prompts/cuentas/README.md`): `reply.md` es obligatorio;
+  sin `extract.md` y `question.md` sus vídeos no se analizan (solo se responde).
+- **Por cuenta**: el tope `MAX_REPLIES_PER_HOUR`, la regla de "a cada persona solo se le responde
+  una queja de que no sale" y los participantes. Los comentarios de una de tus cuentas en otra
+  no se responden.
+- **Informes y revisión**: `/report` separa los vídeos por cuenta, `/participants?cuenta=<usuario>`
+  y en `/review` cada tarjeta dice de qué cuenta es.
+- **CLI**: `--cuenta <usuario|id>` en `import:comments`, `question`, `reextract` y `token`
+  (por defecto, la principal; `question` y `reextract` con un vídeo ya guardado usan su cuenta).
+- Lo guardado antes de tener varias cuentas pasa a la principal la primera vez que arranca.
 
 ## Plan B: leer los comentarios sin webhook
 
@@ -297,7 +320,8 @@ y `error`. Los tokens nunca aparecen en los logs. Los payloads crudos de los web
 | `IG_APP_ID` | — | ID de la app (informativo) |
 | `IG_APP_SECRET` | — | Valida la firma de los webhooks (unified: clave secreta de la app de Meta) |
 | `IG_ACCESS_TOKEN` | — | Token generado en el panel de Meta |
-| `IG_USER_ID` | — | ID de tu cuenta profesional de Instagram |
+| `IG_USER_ID` | — | ID de tu cuenta profesional de Instagram (varias: separados por comas) |
+| `IG_ACCESS_TOKEN_<id>` | — | Opcional: token propio de una de las cuentas |
 | `WEBHOOK_VERIFY_TOKEN` | — | El mismo texto que pongas en Meta |
 | `ANTHROPIC_API_KEY` | — | API key creada dentro de un workspace de la consola de Anthropic |
 | `ANTHROPIC_WORKSPACE_ID` | — | Solo si la key no pertenece a un workspace (`wrkspc_…`) |
@@ -349,6 +373,7 @@ En local, los comandos (`pnpm question`, `pnpm review`, …) usan el código com
 src/
   server.ts            arranque: HTTP + worker + publicador + refresco de token + plan B
   app.ts               rutas (webhook, informes, revisión, estado)
+  accounts.ts          tus cuentas de Instagram (token, lectura y prompts de cada una)
   webhook/             firma, parser del payload, rutas
   queue/               cola persistente (tabla comments)
   worker/              replyWorker (cola), publisher (único que publica), poller (plan B)
@@ -358,7 +383,7 @@ src/
   importer/            importación de comentarios existentes (solo lectura)
   reports/, review/    informes y modo revisión
   cli/                 question, review, import, reextract, token
-prompts/               reply.md, extract.md, question.md (editables)
+prompts/               reply.md, extract.md, question.md, historia.md (editables); cuentas/<usuario>/ para las demás cuentas
 config/                blocked.txt, spam.txt (editables)
 scripts/               simulate-webhook.ts
 test/                  tests (vitest)
