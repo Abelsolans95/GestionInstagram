@@ -5,7 +5,7 @@ import { join, resolve } from 'node:path';
  * Prompts en prompts/*.md, editables sin tocar código. Se releen si cambia el fichero
  * (en local, al guardar; en Railway, tras el despliegue).
  */
-export type PromptName = 'reply' | 'extract' | 'question';
+export type PromptName = 'reply' | 'extract' | 'question' | 'historia';
 
 export interface PromptStore {
   get(name: PromptName): string;
