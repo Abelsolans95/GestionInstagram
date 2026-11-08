@@ -140,7 +140,8 @@ export async function generateReply(
 ): Promise<ReplyValidation> {
   const raw = await llm.completeJson({
     task: 'reply',
-    system: prompts.get('reply'),
+    // El prompt de estilo y, aparte, lo que ya existe en la historia (lo actualizas tú cada día).
+    system: `${prompts.get('reply')}\n\n${prompts.get('historia')}`,
     user: buildReplyUserMessage(input),
     schema: REPLY_SCHEMA,
   });

@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { buildReplyUserMessage, ensureMention, validateReplyOutput } from '../src/llm/reply.js';
+import { fakeLlm, testPrompts } from './helpers/fakes.js';
+import { createPromptStore } from '../src/llm/prompts.js';
+import { buildReplyUserMessage, ensureMention, generateReply, validateReplyOutput } from '../src/llm/reply.js';
 
 const U = 'cesar_h_marquez';
 const out = (reply: string | null, reason = 'ok') => JSON.stringify({ reply, reason });
@@ -82,5 +84,19 @@ describe('validación de la respuesta del modelo', () => {
     expect(buildReplyUserMessage({ ...base, answerLabel: 'cazador' })).toContain('responde a la pregunta del vídeo (respuesta: "cazador")');
     expect(buildReplyUserMessage({ ...base, answerLabel: null })).not.toContain('responde a la pregunta del vídeo');
     expect(buildReplyUserMessage(base)).not.toContain('responde a la pregunta del vídeo');
+  });
+});
+
+describe('lo que ya existe en la historia', () => {
+  it('el modelo de respuestas recibe el estilo y, aparte, la historia hasta hoy', async () => {
+    const { llm, calls } = fakeLlm(() => ({ reply: '🔥', reason: 'x', complaint: false }));
+    await generateReply(llm, testPrompts, { username: 'pepe', text: 'yo', caption: null, question: null, parent: null });
+    expect(calls[0]!.system).toBe('REPLY\n\nHISTORIA');
+  });
+
+  it('prompts/historia.md existe y dice que el fuego ya está descubierto', () => {
+    const historia = createPromptStore().get('historia');
+    expect(historia).toContain('Ya existe');
+    expect(historia).toMatch(/el fuego/);
   });
 });

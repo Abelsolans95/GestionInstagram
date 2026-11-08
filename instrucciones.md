@@ -256,6 +256,9 @@ Algunas tareas se hacen con comandos dentro del servidor de Railway.
 
 - **Cambiar cómo respondes**: edita `prompts/reply.md` en GitHub (botón del lápiz) y guarda.
   Railway redespliega solo.
+- **Lo que ya existe en la historia**: `prompts/historia.md`. Cuando en un vídeo se descubra o se
+  construya algo (la rueda, las casas…), muévelo a "Ya existe". Si no, Haiku puede decir que aún
+  hay que inventarlo.
 - **Votaciones con me gusta**: publica en el vídeo un comentario por candidato u opción y pide que
   voten dándole me gusta. En el informe del vídeo, el enlace **votos (me gusta)** los cuenta en ese
   momento y dice quién va ganando (pulsa *Actualizar* para volver a contar).

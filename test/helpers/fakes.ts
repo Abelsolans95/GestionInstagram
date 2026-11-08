@@ -54,7 +54,7 @@ export function fakeLlm(handler: (req: JsonCompletionRequest) => unknown) {
   return { llm, calls };
 }
 
-export const testPrompts = staticPromptStore({ reply: 'REPLY', extract: 'EXTRACT', question: 'QUESTION' });
+export const testPrompts = staticPromptStore({ reply: 'REPLY', extract: 'EXTRACT', question: 'QUESTION', historia: 'HISTORIA' });
 export const testLists = staticFilterLists(['gilipoll*', 'hijo de puta'], ['gana dinero', 'mira mi perfil']);
 
 /** Comentario citado en el mensaje de usuario de la extracción (la última línea entre """). */
