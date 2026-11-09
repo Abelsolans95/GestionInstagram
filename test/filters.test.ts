@@ -11,7 +11,7 @@ import {
   parseTermList,
   staticFilterLists,
 } from '../src/pipeline/filters.js';
-import { isEmojiOnly, normalizeForMatch } from '../src/pipeline/text.js';
+import { isEmojiOnly, isLettersOnly, normalizeForMatch } from '../src/pipeline/text.js';
 
 const lists = staticFilterLists(
   ['gilipoll*', 'hijo de puta', 'idiota', '# comentario', '', 'política'],
@@ -112,4 +112,12 @@ describe('normalizeForMatch', () => {
   it('quita tildes, signos y repeticiones', () => {
     expect(normalizeForMatch('¡¡Qué TONTOOOO, eh!!')).toBe('que tonto eh');
   });
+});
+
+describe('solo letras sueltas (no se responden)', () => {
+  it.each(['A', 'Aa', 'aaaa', 'Apapapa', 'jjjj', 'A!!', '@amigo a', 'lalala'])('"%s" son solo letras', (t) => expect(isLettersOnly(t)).toBe(true));
+  it.each(['yo', 'Yoooo', 'si', 'no', 'jajaja', 'jsjsjs', 'El hueso', 'Yo quiero la play 5', 'traje', '🔥🔥', 'xd', 'nooo', 'papa'])(
+    '"%s" no',
+    (t) => expect(isLettersOnly(t)).toBe(false),
+  );
 });

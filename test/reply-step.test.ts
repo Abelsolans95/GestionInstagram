@@ -96,6 +96,14 @@ describe('respuesta con Claude', () => {
     expect(meta.calls.some((c) => c.method === 'GET' && c.path === '/principal')).toBe(true);
   });
 
+  it('los comentarios de solo letras sueltas no se responden (ni se llama al modelo para responder)', async () => {
+    const { send, calls } = setup();
+    for (const t of ['A', 'Aa', 'Apapapa']) {
+      expect(await send(t)).toMatchObject({ status: 'skipped', decision: 'letters_only', reply_text: null });
+    }
+    expect(calls.filter((c) => c.task === 'reply')).toEqual([]);
+  });
+
   it('los comentarios de solo emojis SÍ se responden', async () => {
     const { send } = setup();
     expect(await send('🔥🔥🔥')).toMatchObject({ status: 'pending_review', reply_text: '@incognito_dvc 🙌🙌' });

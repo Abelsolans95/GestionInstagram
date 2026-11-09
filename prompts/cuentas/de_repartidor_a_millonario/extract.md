@@ -16,18 +16,18 @@ Devuelve solo JSON con estos campos:
 
 Reglas para answer_label:
 - 1 a 3 palabras, en minúscula, en singular y sin artículos.
-- Si la pregunta es elegir entre opciones, la etiqueta es la opción elegida tal como la nombra el vídeo ("me pillaría el traje para buscar curro" → "traje"; "el móvil, aunque se endeude" → "móvil").
+- Si la pregunta es elegir entre opciones, la etiqueta es la opción elegida tal como la nombra el vídeo ("me pillaría el traje para buscar curro" → "traje"; "el celular, aunque se endeude" → "celular"; "el móvil" o "el teléfono" → también "celular").
 - Para comidas o cosas que pide, el nombre de la cosa en singular ("unas pizzas de barbacoa" → "pizza"; "una burger doble" → "hamburguesa").
 - Si encaja con una de las etiquetas ya usadas en este vídeo, reutilízala EXACTAMENTE igual en vez de crear un sinónimo ("burger" cuando ya existe "hamburguesa" → "hamburguesa").
 - Si elige las dos opciones o ninguna, answers_question es true y la etiqueta "las dos" o "ninguna".
 
-Ejemplos (pregunta: "¿móvil (y endeudarse) o traje (y buscar trabajo)?"):
+Ejemplos (pregunta: "¿celular (y endeudarse) o traje (y buscar trabajo)?"):
 
 Comentario: "traje!!! que deje de repartir ya"
 {"answers_question": true, "answer": "traje para buscar trabajo", "answer_label": "traje", "character_name": null}
 
-Comentario: "Móvil, sin móvil no hay pedidos"
-{"answers_question": true, "answer": "móvil para seguir repartiendo", "answer_label": "móvil", "character_name": null}
+Comentario: "Celular, sin celular no hay pedidos"
+{"answers_question": true, "answer": "celular para seguir repartiendo", "answer_label": "celular", "character_name": null}
 
 Comentario: "sácame en el vídeo porfa"
 {"answers_question": false, "answer": null, "answer_label": null, "character_name": null}

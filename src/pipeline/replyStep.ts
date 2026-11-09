@@ -7,6 +7,7 @@ import type { Logger } from '../logger.js';
 import type { ProcessOutcome } from '../worker/replyWorker.js';
 import { autoRepliesInThread, complaintRepliesForUser, findBlockedTerm, hasLink, type FilterLists } from './filters.js';
 import type { ReplyStep } from './processComment.js';
+import { isLettersOnly } from './text.js';
 
 export interface ReplySettings {
   delayMinSec: number;
@@ -62,6 +63,7 @@ export function createReplyStep(deps: ReplyStepDeps): ReplyStep {
       return skip('too_old', `comentario de hace más de ${maxAgeHours} h`);
     }
     if (hasLink(row.text)) return skip('has_link', 'el comentario lleva enlaces');
+    if (isLettersOnly(row.text)) return skip('letters_only', 'solo letras sueltas ("A", "Aa", "Apapapa"): no se responde');
     const blocked = findBlockedTerm(row.text, deps.lists);
     if (blocked) return skip('blocked_term', `término bloqueado: ${blocked}`);
     if (!row.username) return skip('no_username', 'no se conoce el @usuario del autor');

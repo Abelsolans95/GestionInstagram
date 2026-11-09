@@ -13,6 +13,7 @@ import { isEmojiOnly, normalizeForMatch } from './text.js';
  *  - términos bloqueados (blocked.txt)  → extracción sí, respuesta no
  *  - 2 respuestas a ese usuario en ese hilo en 24 h → extracción sí, respuesta no
  *  - status "imported"                  → nunca se responde
+ *  - solo letras sueltas ("A", "Aa", "Apapapa") → extracción sí, respuesta no
  * Los comentarios de solo emojis SÍ se responden.
  */
 
