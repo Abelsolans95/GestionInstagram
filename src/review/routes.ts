@@ -157,7 +157,9 @@ export function friendlyError(err: string | null): string {
   if (/not scoped to a workspace/i.test(err)) return 'La clave de Claude no pertenece a un workspace: usa una creada dentro de uno';
   if (/credit balance|billing|insufficient/i.test(err)) return 'Sin crédito en Anthropic: añade crédito y luego reintenta';
   if (/does not exist|Unsupported post request/i.test(err)) return 'El comentario ya no existe o está oculto: no se puede responder (reintentar no sirve)';
-  if (/OAuth|access token/i.test(err)) return 'El token de Meta no vale (IG_ACCESS_TOKEN): genera otro';
+  if (/API access blocked/i.test(err)) return 'Meta ha bloqueado el token de la cuenta: genera otro en el panel de Meta, cámbialo en Railway y luego reintenta';
+  if (/Cannot parse access token/i.test(err)) return 'El token de Meta está mal pegado en Railway (IG_ACCESS_TOKEN o IG_ACCESS_TOKEN_<id>): vuelve a pegarlo solo, sin comillas ni espacios';
+  if (/OAuth|access token/i.test(err)) return 'El token de Meta no vale (IG_ACCESS_TOKEN o IG_ACCESS_TOKEN_<id>): genera otro';
   if (/rate limit|429|too many/i.test(err)) return 'Límite de llamadas: espera un rato y reintenta';
   return err.slice(0, 200);
 }

@@ -4,7 +4,7 @@ import type { LlmClient } from '../llm/claude.js';
 import { hasPrompt, type PromptStore } from '../llm/prompts.js';
 import { detectQuestion } from '../llm/question.js';
 import type { Logger } from '../logger.js';
-import { MetaApiError } from '../meta/http.js';
+import { isMissingObjectError } from '../meta/http.js';
 import type { ReadClient } from '../meta/readClient.js';
 import type { IgMedia } from '../meta/types.js';
 import type { FilterLists, OwnIdentity } from './filters.js';
@@ -138,8 +138,10 @@ export async function ensureMedia(
     const m = opts.known ?? (await deps.read.getMedia(mediaId));
     upsert = mediaUpsertFromApi(m, own);
   } catch (err) {
-    if (err instanceof MetaApiError && err.status !== null && err.status >= 400 && err.status < 500) {
-      deps.logger.warn({ media_id: mediaId, err: err.message }, 'vídeo no accesible: se trata como ajeno');
+    // Solo si Meta dice que el vídeo no existe o este token no puede verlo. Un token bloqueado o
+    // inválido, o un límite de llamadas, no dicen nada del vídeo: el comentario falla y se reintenta.
+    if (isMissingObjectError(err)) {
+      deps.logger.warn({ media_id: mediaId, err: (err as Error).message }, 'vídeo no accesible: se trata como ajeno');
       upsert = { ...mediaUpsertFromApi({ id: mediaId }, own), isOwn: false };
     } else {
       throw err;

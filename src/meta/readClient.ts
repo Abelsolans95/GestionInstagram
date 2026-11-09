@@ -3,7 +3,7 @@
  * Lo usan el worker, la importación y los comandos CLI. No puede publicar nada:
  * para eso existe writeClient.ts, que solo usa el publicador del worker de respuestas.
  */
-import { graphGet, MetaApiError, type GraphContext } from './http.js';
+import { graphGet, isMissingObjectError, MetaApiError, type GraphContext } from './http.js';
 import type { IgComment, IgMe, IgMedia, IgPage, IgThread } from './types.js';
 
 export interface ReadClient {
@@ -32,10 +32,6 @@ function isUnknownFieldError(err: unknown): boolean {
   return err instanceof MetaApiError && err.status === 400 && err.code === 100;
 }
 
-/** "Object with ID … does not exist, cannot be loaded due to missing permissions…" (subcódigo 33). */
-function isMissingObject(err: unknown): boolean {
-  return err instanceof MetaApiError && (err.subcode === 33 || /does not exist|Unsupported get request/i.test(err.message));
-}
 
 export interface ReadClientOptions {
   graph: GraphContext;
@@ -66,7 +62,7 @@ export function createReadClient(opts: ReadClientOptions): ReadClient {
     try {
       return await call();
     } catch (err) {
-      if (!degraded[kind] && isUnknownFieldError(err) && !isMissingObject(err)) {
+      if (!degraded[kind] && isUnknownFieldError(err) && !isMissingObjectError(err)) {
         degraded[kind] = true;
         try {
           const res = await call();

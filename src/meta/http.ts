@@ -40,6 +40,22 @@ export class MetaApiError extends Error {
   }
 }
 
+/**
+ * "Unsupported get request. Object with ID '…' does not exist, cannot be loaded due to missing
+ * permissions, or does not support this operation" (código 100, subcódigo 33): el objeto no existe
+ * o este token no puede verlo (p. ej. un vídeo ajeno). Distinto de un token que no vale o está
+ * bloqueado ("API access blocked", "Invalid OAuth access token"), que no dice nada del objeto.
+ */
+export function isMissingObjectError(err: unknown): boolean {
+  return (
+    err instanceof MetaApiError &&
+    err.status !== null &&
+    err.status >= 400 &&
+    err.status < 500 &&
+    (err.subcode === 33 || /does not exist|Unsupported get request/i.test(err.message))
+  );
+}
+
 /** Códigos de la Graph API de error temporal o de límite de llamadas. */
 const RETRYABLE_CODES = new Set([1, 2, 4, 17, 32, 341, 613]);
 

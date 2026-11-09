@@ -152,4 +152,16 @@ export const MIGRATIONS: readonly string[] = [
     PRIMARY KEY (account_id, username)
   );
   `,
+
+  // 7 — un token bloqueado ("API access blocked") hacía que tus vídeos se marcaran como ajenos.
+  // Se vuelven a comprobar los vídeos marcados como ajenos, y los comentarios recientes que se
+  // saltaron por eso pasan a fallidos para poder reintentarlos.
+  `
+  UPDATE media SET fetched_at = 0 WHERE is_own = 0;
+  UPDATE comments
+     SET status = 'failed', decision = 'error',
+         last_error = 'Meta no dejó leer el vídeo (token bloqueado o no válido): reintentar cuando el token funcione'
+   WHERE status = 'skipped' AND decision = 'not_own_media' AND source != 'import'
+     AND created_at >= (CAST(strftime('%s', 'now') AS INTEGER) - 3 * 86400) * 1000;
+  `,
 ];
