@@ -164,4 +164,16 @@ export const MIGRATIONS: readonly string[] = [
    WHERE status = 'skipped' AND decision = 'not_own_media' AND source != 'import'
      AND created_at >= (CAST(strftime('%s', 'now') AS INTEGER) - 3 * 86400) * 1000;
   `,
+
+  // 8 — lo mismo con un token de otra cuenta ("does not exist, cannot be loaded due to missing
+  // permissions"): se vuelven a comprobar los vídeos marcados como ajenos y los comentarios
+  // recientes que se saltaron por eso (o que se dieron por borrados al publicar) pasan a fallidos.
+  `
+  UPDATE media SET fetched_at = 0 WHERE is_own = 0;
+  UPDATE comments
+     SET status = 'failed', decision = 'error',
+         last_error = 'Meta no dejó leer el vídeo o el comentario (token de otra cuenta o no válido): reintentar cuando el token funcione'
+   WHERE status = 'skipped' AND decision IN ('not_own_media', 'comment_unavailable') AND source != 'import'
+     AND updated_at >= (CAST(strftime('%s', 'now') AS INTEGER) - 86400) * 1000;
+  `,
 ];

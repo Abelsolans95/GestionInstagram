@@ -115,6 +115,20 @@ export async function getOwnIdentity(
   }
 }
 
+/** ¿El token de esta cuenta puede leer la propia cuenta? (si no, es el token de otra o no vale) */
+export async function tokenReadsAccount(deps: Pick<AnalysisDeps, 'read' | 'logger' | 'igUserId'>): Promise<boolean> {
+  try {
+    await deps.read.getMe();
+    return true;
+  } catch (err) {
+    deps.logger.error(
+      { account_id: deps.igUserId, err: (err as Error).message },
+      'el token de esta cuenta no puede leer la cuenta: revisa IG_ACCESS_TOKEN (o IG_ACCESS_TOKEN_<id>)',
+    );
+    return false;
+  }
+}
+
 /**
  * Datos del vídeo (caption cacheado por media). Con persist=false (dry-run) no escribe nada.
  * Si Meta responde 4xx al leerlo (p. ej. un vídeo ajeno en el que te mencionan), se marca como ajeno.
@@ -140,7 +154,9 @@ export async function ensureMedia(
   } catch (err) {
     // Solo si Meta dice que el vídeo no existe o este token no puede verlo. Un token bloqueado o
     // inválido, o un límite de llamadas, no dicen nada del vídeo: el comentario falla y se reintenta.
-    if (isMissingObjectError(err)) {
+    // Y solo si el token sí puede leer la propia cuenta: si tampoco puede, el problema es el token
+    // (p. ej. el de otra cuenta), no el vídeo.
+    if (isMissingObjectError(err) && (await tokenReadsAccount(deps))) {
       deps.logger.warn({ media_id: mediaId, err: (err as Error).message }, 'vídeo no accesible: se trata como ajeno');
       upsert = { ...mediaUpsertFromApi({ id: mediaId }, own), isOwn: false };
     } else {

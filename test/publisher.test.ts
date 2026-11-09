@@ -160,6 +160,20 @@ describe('comentarios que ya no existen', () => {
     await publisher.tick();
     expect(getComment(db, 'c1')).toMatchObject({ status: 'skipped', decision: 'comment_unavailable' });
   });
+
+  it('pero si el token tampoco puede leer tu cuenta (token de otra cuenta), es un fallo que se reintenta', async () => {
+    const missing = (id: string) =>
+      new Response(
+        JSON.stringify({ error: { message: `Unsupported get request. Object with ID '${id}' does not exist, cannot be loaded due to missing permissions, or does not support this operation.`, code: 100, error_subcode: 33 } }),
+        { status: 400 },
+      );
+    const { db, publisher } = setup({
+      fetch: () => async (u) => missing(new URL(u).pathname.split('/').filter(Boolean).at(-1) ?? ''),
+    });
+    scheduled(db, 'c1');
+    await publisher.tick();
+    expect(getComment(db, 'c1')).toMatchObject({ status: 'failed', decision: 'publish_failed' });
+  });
 });
 
 describe('me gusta a los comentarios respondidos', () => {

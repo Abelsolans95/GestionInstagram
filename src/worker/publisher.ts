@@ -126,6 +126,19 @@ export function createPublisher(opts: PublisherOptions): Publisher {
   const accountOf = (row: CommentRow): PublisherAccount | undefined =>
     accounts.find((a) => a.id === (row.account_id ?? primaryId));
 
+  /** ¿El token de la cuenta de este comentario puede leer la propia cuenta? */
+  async function tokenReadsAccount(row: CommentRow): Promise<boolean> {
+    const account = accountOf(row);
+    if (!account) return false;
+    try {
+      await account.read.getMe();
+      return true;
+    } catch (err) {
+      logger.error({ account_id: account.id, err: errorMessage(err) }, 'el token de esta cuenta no puede leer la cuenta: revisa su token');
+      return false;
+    }
+  }
+
   /** ¿Ya existe en el hilo una respuesta nuestra con este texto? (para no duplicar) */
   async function alreadyPublished(row: CommentRow): Promise<string | null> {
     if (!row.reply_target_id || !row.reply_text) return null;
@@ -207,7 +220,8 @@ export function createPublisher(opts: PublisherOptions): Publisher {
       }
       // El comentario ya no existe o no se puede responder (borrado u ocultado por su autor o por
       // Instagram): no es un fallo que reintentar, se marca como no disponible.
-      if (isCommentUnavailable(err)) {
+      // (Salvo que el token tampoco pueda leer la cuenta: entonces es el token, y se reintenta.)
+      if (isCommentUnavailable(err) && (await tokenReadsAccount(row))) {
         updateComment(
           db,
           row.comment_id,
