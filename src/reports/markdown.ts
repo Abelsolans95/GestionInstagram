@@ -42,5 +42,10 @@ export function mediaReportMarkdown(r: MediaReport): string {
   lines.push('', `## No responden a la pregunta (${r.nonAnswers.length})`, '');
   if (r.nonAnswers.length === 0) lines.push('Ninguno.');
   for (const n of r.nonAnswers) lines.push(`- @${md(n.username ?? '?')}: ${md(n.text)}`);
+
+  lines.push('', '## Los que más han comentado', '');
+  if (r.topCommenters.length === 0) lines.push('Todavía no hay comentarios guardados.');
+  r.topCommenters.forEach((p, i) => lines.push(`${i + 1}. @${md(p.username)}: ${p.count} ${p.count === 1 ? 'comentario' : 'comentarios'}`));
+  if (r.topCommenters.length) lines.push('', `De ${r.totalComments} comentarios guardados de tus seguidores (incluidas las respuestas en hilos; sin los tuyos).`);
   return lines.join('\n').replace(/\n{3,}/g, '\n\n') + '\n';
 }

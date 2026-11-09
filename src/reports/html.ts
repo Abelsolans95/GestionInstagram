@@ -112,7 +112,13 @@ ${r.pendingAnalysis ? `<div class="card">Hay ${plural(r.pendingAnalysis, 'coment
 ${groups}
 ${anyMultiple ? '<p class="muted">* respondió varias veces; cuenta la última.</p>' : ''}
 <h2>No responden a la pregunta (${r.nonAnswers.length})</h2>
-${non}`,
+${non}
+<h2>Los que más han comentado</h2>
+${
+  r.topCommenters.length
+    ? `<ol>${r.topCommenters.map((p) => `<li>@${esc(p.username)} · ${plural(p.count, 'comentario', 'comentarios')}</li>`).join('')}</ol><p class="muted">De ${plural(r.totalComments, 'comentario guardado', 'comentarios guardados')} de tus seguidores (incluidas las respuestas en hilos; sin los tuyos).</p>`
+    : '<p class="muted">Todavía no hay comentarios guardados.</p>'
+}`,
   );
 }
 

@@ -35,6 +35,10 @@ export interface MediaReport {
   totalPeople: number;
   /** Comentarios guardados sin analizar (p. ej. de una cuenta sin prompt de análisis). */
   pendingAnalysis: number;
+  /** Quién más ha comentado en el vídeo (comentarios y respuestas en hilos; sin los tuyos). */
+  topCommenters: { username: string; count: number }[];
+  /** Comentarios de seguidores guardados del vídeo (sin los tuyos). */
+  totalComments: number;
 }
 
 export const NO_LABEL = '(sin etiqueta)';
@@ -109,6 +113,18 @@ export function buildMediaReport(db: DB, mediaId: string): MediaReport | null {
            WHERE media_id = ? AND extract_status IS NULL AND status NOT IN ('queued', 'processing')
              AND COALESCE(decision, '') NOT IN ('own_comment', 'spam', 'not_own_media')`,
         )
+        .get(mediaId) as { n: number }
+    ).n,
+    topCommenters: db
+      .prepare(
+        `SELECT username, COUNT(*) AS count FROM comments
+         WHERE media_id = ? AND username IS NOT NULL AND COALESCE(decision, '') != 'own_comment'
+         GROUP BY username ORDER BY count DESC, MIN(commented_at) LIMIT 10`,
+      )
+      .all(mediaId) as { username: string; count: number }[],
+    totalComments: (
+      db
+        .prepare(`SELECT COUNT(*) AS n FROM comments WHERE media_id = ? AND COALESCE(decision, '') != 'own_comment'`)
         .get(mediaId) as { n: number }
     ).n,
   };

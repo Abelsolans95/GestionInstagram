@@ -182,6 +182,15 @@ describe('GET /report (índice)', () => {
   });
 });
 
+describe('los que más han comentado', () => {
+  it('cuenta los comentarios de cada seguidor en el vídeo, de más a menos', async () => {
+    const text = strip((await get(`/report/m1?token=${TOKEN}`)).body);
+    expect(text).toMatch(/Los que más han comentado\s*@b · 2 comentarios\s*@a · 1 comentario/);
+    const md = (await get(`/report/m1?format=md&token=${TOKEN}`)).body;
+    expect(md).toContain('1. @b: 2 comentarios');
+  });
+});
+
 describe('GET /participants', () => {
   it('ficha por seguidor con su personaje y su respuesta en cada vídeo', async () => {
     const text = strip((await get(`/participants?token=${TOKEN}`)).body);
