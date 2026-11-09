@@ -12,7 +12,7 @@ import { MIGRATIONS } from '../src/db/migrations.js';
 import { createAccountPromptStore, staticPromptStore } from '../src/llm/prompts.js';
 import type { FetchLike } from '../src/meta/http.js';
 import { createServiceProcessor } from '../src/pipeline/accountProcessor.js';
-import { ensureMedia } from '../src/pipeline/context.js';
+import { ensureMedia, getOwnIdentity } from '../src/pipeline/context.js';
 import { reextractMedia } from '../src/pipeline/reextract.js';
 import { storeAnalysis } from '../src/pipeline/extraction.js';
 import { complaintRepliesForUser } from '../src/pipeline/filters.js';
@@ -130,7 +130,7 @@ const COMMENTS = [
 ].map(([id, username, from]) => ({ id: id!, text: 'hola', username, timestamp: '2026-11-08T11:00:00+0000', from: { id: from!, username } }));
 
 /** Dos cuentas con su propio token: cada petición va a la "Meta" de la cuenta cuyo token lleva. */
-function setup(opts: { maxPerHour?: number } = {}) {
+function setup(opts: { maxPerHour?: number; reviewMode?: boolean; reviewAccounts?: string[] } = {}) {
   const metaA = createFakeMeta({
     igUserId: A,
     username: 'humanidaddesdecero',
@@ -152,7 +152,11 @@ function setup(opts: { maxPerHour?: number } = {}) {
     if (req.task === 'extract') return { answers_question: true, answer: 'pescador', answer_label: 'pescador', character_name: null };
     return { reply: '@x genial!!', reason: 'hype', complaint: false };
   });
-  const config = testConfig({ maxPerHour: opts.maxPerHour ?? 60 });
+  const config = testConfig({
+    maxPerHour: opts.maxPerHour ?? 60,
+    ...(opts.reviewMode !== undefined ? { reviewMode: opts.reviewMode } : {}),
+    ...(opts.reviewAccounts ? { reviewAccounts: opts.reviewAccounts } : {}),
+  });
   config.meta.accessToken = 'tok-a';
   config.meta.accounts = [
     { id: A, accessToken: 'tok-a' },
@@ -238,6 +242,17 @@ describe('varias cuentas en el mismo servicio', () => {
     await send([{ commentId: 'y', mediaId: 'mA', accountId: A }]);
     const lastMediaRead = metaA.calls.filter((c) => c.path === '/mA').at(-1)!;
     expect(lastMediaRead.params.fields).toContain('caption');
+  });
+
+  it('REVIEW_MODE_CUENTAS: esa cuenta pasa por revisión aunque REVIEW_MODE=false', async () => {
+    const { db, s, send } = setup({ reviewMode: false, reviewAccounts: ['repartidor'] });
+    await getOwnIdentity(s.accounts.get(B)!.analysis); // su @usuario, como al arrancar el servidor
+    await send([
+      { commentId: 'deA', mediaId: 'mA', accountId: A },
+      { commentId: 'deB', mediaId: 'mB', accountId: B, text: 'que hambre', fromUsername: 'lola', fromId: 'ig-lola' },
+    ]);
+    expect(getComment(db, 'deA')!.status).toBe('scheduled');
+    expect(getComment(db, 'deB')!.status).toBe('pending_review');
   });
 
   it('los comentarios de tus otras cuentas no se responden', async () => {

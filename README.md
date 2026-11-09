@@ -270,6 +270,7 @@ envía `Authorization: Bearer TU_REPORT_TOKEN`.
 |---|---|
 | `GET /report` | Índice de vídeos con su pregunta |
 | `GET /report/:mediaId` | La pregunta y las respuestas agrupadas por etiqueta, ordenadas por número de personas (`herrero (3): @a, @b, @c`); al final, los comentarios que no responden. `?format=csv`, `?format=md`, `?format=conversaciones` (cada hilo con tus respuestas marcadas, en Markdown) |
+| `GET /report/:mediaId/megusta` | Comentarios de tus seguidores ordenados por me gusta (leídos de Meta en ese momento), con su respuesta a la pregunta si está analizada: para elegir cuáles salen en el vídeo |
 | `GET /report/:mediaId/votos` | Votaciones con me gusta: lee de Meta en ese momento los me gusta (`like_count`) de tus comentarios principales del vídeo (uno por candidato u opción), los ordena y dice quién va ganando |
 | `GET /participants` | Ficha por seguidor: @usuario, nombre de personaje y su respuesta en cada vídeo. `?format=csv`; con varias cuentas, `?cuenta=<usuario>` |
 | `GET /review` | Respuestas pendientes de aprobar |
@@ -330,6 +331,7 @@ y `error`. Los tokens nunca aparecen en los logs. Los payloads crudos de los web
 | `REPLY_DELAY_MIN` / `REPLY_DELAY_MAX` | 60 / 300 | Segundos |
 | `MAX_REPLIES_PER_HOUR` | 60 | |
 | `REVIEW_MODE` | true | |
+| `REVIEW_MODE_CUENTAS` | — | Cuentas (@usuario o ID, separadas por comas) que pasan por revisión aunque `REVIEW_MODE=false` |
 | `REPORT_TOKEN` | — | 16+ caracteres aleatorios |
 | `MAX_REPLY_AGE_HOURS` | 0 | 0 = responder todos |
 | `LIKE_REPLIED_COMMENTS` | false | Me gusta al comentario respondido (`POST /{IG_USER_ID}/likes`). Según Meta solo con *Facebook Login* y el permiso `instagram_manage_engagement`; si lo rechaza, se desactiva solo |

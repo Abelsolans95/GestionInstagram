@@ -18,7 +18,7 @@ import {
 export interface ReviewRouteOptions {
   db: DB;
   reportToken: string;
-  settings: Pick<ReplySettings, 'delayMinSec' | 'delayMaxSec' | 'reviewMode'>;
+  settings: Pick<ReplySettings, 'delayMinSec' | 'delayMaxSec' | 'reviewMode' | 'reviewAccounts'>;
   /** Para despertar al worker cuando se reencolan comentarios. */
   onRequeued?: () => void;
   /** Con varias cuentas: "@cuenta" de cada comentario (se muestra en la tarjeta). */
@@ -71,7 +71,7 @@ export const reviewRoutes: FastifyPluginAsync<ReviewRouteOptions> = async (app, 
         'Revisión',
         `${nav(token)}
 <h1>Respuestas pendientes (${items.length})</h1>
-<p class="muted">${opts.settings.reviewMode ? 'REVIEW_MODE activo: nada se publica sin tu aprobación.' : 'REVIEW_MODE desactivado: las respuestas nuevas se publican solas.'} Al aprobar, se publica tras el delay aleatorio y respetando el tope por hora.</p>
+<p class="muted">${opts.settings.reviewMode ? 'REVIEW_MODE activo: nada se publica sin tu aprobación.' : opts.settings.reviewAccounts?.length ? `REVIEW_MODE desactivado salvo para ${esc(opts.settings.reviewAccounts.map((x) => (/^\d+$/.test(x) ? x : `@${x}`)).join(', '))}: el resto se publica solo.` : 'REVIEW_MODE desactivado: las respuestas nuevas se publican solas.'} Al aprobar, se publica tras el delay aleatorio y respetando el tope por hora.</p>
 ${msg}
 ${queued}
 ${retry}

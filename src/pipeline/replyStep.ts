@@ -12,6 +12,8 @@ export interface ReplySettings {
   delayMinSec: number;
   delayMaxSec: number;
   reviewMode: boolean;
+  /** Cuentas (usuario sin @ en minúscula, o ID) que pasan por revisión aunque reviewMode sea false. */
+  reviewAccounts?: string[];
   /** 0 = sin límite de antigüedad. */
   maxAgeHours: number;
 }

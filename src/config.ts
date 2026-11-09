@@ -75,6 +75,11 @@ const envSchema = z
     REPLY_DELAY_MAX: z.coerce.number().int().min(0).default(300),
     MAX_REPLIES_PER_HOUR: z.coerce.number().int().min(1).default(60),
     REVIEW_MODE: bool.default(true),
+    /**
+     * Cuentas que pasan por revisión aunque REVIEW_MODE=false (p. ej. una cuenta nueva):
+     * sus @usuarios o IDs separados por comas.
+     */
+    REVIEW_MODE_CUENTAS: z.string().trim().optional(),
     /** Dar me gusta a los comentarios que se responden (ver writeClient.likeComment). */
     LIKE_REPLIED_COMMENTS: bool.default(false),
     /** No responder comentarios más antiguos que esto (horas). Vacío o 0 = responder todos. */
@@ -147,6 +152,8 @@ export interface AppConfig {
     delayMaxSec: number;
     maxPerHour: number;
     reviewMode: boolean;
+    /** Cuentas (usuario en minúscula sin @, o ID) que siempre pasan por revisión. */
+    reviewAccounts?: string[];
     maxAgeHours: number;
     likeComments: boolean;
   };
@@ -189,6 +196,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
       delayMaxSec: e.REPLY_DELAY_MAX,
       maxPerHour: e.MAX_REPLIES_PER_HOUR,
       reviewMode: e.REVIEW_MODE,
+      reviewAccounts: (e.REVIEW_MODE_CUENTAS ?? '')
+        .split(',')
+        .map((x) => x.trim().replace(/^@/, '').toLowerCase())
+        .filter(Boolean),
       maxAgeHours: e.MAX_REPLY_AGE_HOURS,
       likeComments: e.LIKE_REPLIED_COMMENTS,
     },

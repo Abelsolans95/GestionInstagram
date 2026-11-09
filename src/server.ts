@@ -101,6 +101,7 @@ async function main(): Promise<void> {
       reportToken: config.reportToken,
       get: () => ({
         review_mode: config.replies.reviewMode,
+        review_mode_cuentas: config.replies.reviewAccounts ?? [],
         replies_last_hour: publisher.repliesLastHour(),
         max_replies_per_hour: config.replies.maxPerHour,
         meta_login: config.meta.login,

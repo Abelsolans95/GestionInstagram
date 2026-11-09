@@ -11,6 +11,11 @@ const base = {
 };
 
 describe('configuración', () => {
+  it('REVIEW_MODE_CUENTAS: lista de cuentas (con o sin @) que siempre pasan por revisión', () => {
+    expect(loadConfig(base).replies.reviewAccounts).toEqual([]);
+    expect(loadConfig({ ...base, REVIEW_MODE_CUENTAS: '@De_Repartidor_a_Millonario, 1784' }).replies.reviewAccounts).toEqual(['de_repartidor_a_millonario', '1784']);
+  });
+
   it('valores por defecto: login unificado en graph.facebook.com, v27.0, REVIEW_MODE=true', () => {
     const c = loadConfig(base);
     expect(c.meta).toMatchObject({ login: 'unified', graphUrl: 'https://graph.facebook.com', apiVersion: 'v27.0' });

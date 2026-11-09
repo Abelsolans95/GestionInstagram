@@ -257,6 +257,18 @@ describe('GET /report/:mediaId/votos (me gusta de tus comentarios)', () => {
     expect(res.body).toContain(`/report/e1/votos?token=${TOKEN}`);
   });
 
+  it('más me gusta: comentarios de seguidores (no los tuyos) ordenados por me gusta', async () => {
+    fail = false;
+    const res = await vget(`/report/e1/megusta?token=${TOKEN}`);
+    expect(res.statusCode).toBe(200);
+    const text = strip(res.body);
+    expect(text).toContain('99 me gusta · @carlos: Elíjanme y hacemos carnitas');
+    expect(text).not.toContain('Candidato');
+    expect(text).not.toContain('Rey CAÍN');
+    expect((await vget(`/report/nope/megusta?token=${TOKEN}`)).statusCode).toBe(404);
+    expect((await get(`/report/m1?token=${TOKEN}`)).body).toContain(`/report/m1/megusta?token=${TOKEN}`);
+  });
+
   it('pide el token, 404 si el vídeo no existe y avisa si Meta falla', async () => {
     expect((await vget('/report/e1/votos')).statusCode).toBe(401);
     expect((await vget(`/report/nope/votos?token=${TOKEN}`)).statusCode).toBe(404);

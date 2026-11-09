@@ -6,7 +6,7 @@ import { mediaReportCsv, participantsCsv } from './csv.js';
 import { mediaIndexHtml, mediaReportHtml, participantsHtml, type AccountLabel } from './html.js';
 import { mediaReportMarkdown } from './markdown.js';
 import { buildMediaReport, buildParticipantsReport, listReportMedia } from './queries.js';
-import { buildVotes, votesErrorHtml, votesHtml, type VotesDeps } from './votes.js';
+import { buildTopLiked, buildVotes, topLikedHtml, votesErrorHtml, votesHtml, type VotesDeps } from './votes.js';
 
 export interface ReportOptions {
   db: DB;
@@ -63,6 +63,20 @@ export const reportRoutes: FastifyPluginAsync<ReportOptions> = async (app, opts)
       const votes = await buildVotes(opts.db, deps, req.params.mediaId);
       if (!votes) return reply.code(404).type('text/plain').send('Vídeo no encontrado');
       return reply.type('text/html; charset=utf-8').send(votesHtml(votes, token));
+    } catch (err) {
+      req.log.warn({ media_id: req.params.mediaId, err: (err as Error).message }, 'no se pudieron leer los me gusta');
+      return reply.code(502).type('text/html; charset=utf-8').send(votesErrorHtml(req.params.mediaId, token, (err as Error).message));
+    }
+  });
+
+  app.get<{ Params: { mediaId: string } }>('/report/:mediaId/megusta', async (req, reply) => {
+    const token = requestToken(req)!;
+    if (!opts.votes) return reply.code(404).type('text/plain').send('No disponible');
+    try {
+      const deps = typeof opts.votes === 'function' ? opts.votes(req.params.mediaId) : opts.votes;
+      const top = await buildTopLiked(opts.db, deps, req.params.mediaId);
+      if (!top) return reply.code(404).type('text/plain').send('Vídeo no encontrado');
+      return reply.type('text/html; charset=utf-8').send(topLikedHtml(top, token));
     } catch (err) {
       req.log.warn({ media_id: req.params.mediaId, err: (err as Error).message }, 'no se pudieron leer los me gusta');
       return reply.code(502).type('text/html; charset=utf-8').send(votesErrorHtml(req.params.mediaId, token, (err as Error).message));

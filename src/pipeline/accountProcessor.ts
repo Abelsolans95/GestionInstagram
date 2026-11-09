@@ -57,7 +57,15 @@ export function createServiceProcessor(opts: {
           prompts: a.prompts,
           lists: opts.lists,
           logger: a.analysis.logger,
-          settings: opts.settings,
+          // REVIEW_MODE global o, para esta cuenta, REVIEW_MODE_CUENTAS (se mira en cada comentario).
+          settings: {
+            ...opts.settings,
+            get reviewMode() {
+              const list = opts.settings.reviewAccounts ?? [];
+              const username = accounts.username(a.id);
+              return opts.settings.reviewMode || list.includes(a.id) || (!!username && list.includes(username));
+            },
+          },
           accountId: a.id,
           ...(opts.now ? { now: opts.now } : {}),
           ...(opts.random ? { random: opts.random } : {}),

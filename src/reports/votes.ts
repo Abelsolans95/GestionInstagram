@@ -98,3 +98,74 @@ export function votesErrorHtml(mediaId: string, token: string, message: string):
 <p><a href="/report/${esc(mediaId)}/votos?token=${t}">Reintentar</a></p>`,
   );
 }
+
+// ---------- comentarios con más me gusta ----------
+
+export interface TopLikedComment {
+  commentId: string;
+  username: string | null;
+  text: string;
+  likes: number | null;
+  /** Etiqueta de su respuesta a la pregunta, si se ha analizado. */
+  label: string | null;
+}
+
+export interface TopLikedResult {
+  mediaId: string;
+  question: string | null;
+  permalink: string | null;
+  comments: TopLikedComment[];
+  readAt: number;
+}
+
+/**
+ * Comentarios de los seguidores (no los tuyos) ordenados por me gusta, leídos de Meta en el momento:
+ * para elegir qué comentarios salen en el vídeo. Solo comentarios principales (Meta no da los me
+ * gusta de las respuestas en esta lista). null si el vídeo no está en la base de datos.
+ */
+export async function buildTopLiked(db: DB, deps: VotesDeps, mediaId: string, now = Date.now()): Promise<TopLikedResult | null> {
+  const media = db.prepare('SELECT media_id, question, permalink FROM media WHERE media_id = ?').get(mediaId) as
+    | { media_id: string; question: string | null; permalink: string | null }
+    | undefined;
+  if (!media) return null;
+  const stored = new Map(
+    (
+      db.prepare('SELECT comment_id, decision, answer_label FROM comments WHERE media_id = ?').all(mediaId) as {
+        comment_id: string;
+        decision: string | null;
+        answer_label: string | null;
+      }[]
+    ).map((r) => [r.comment_id, r]),
+  );
+  const [comments, own] = await Promise.all([deps.read.listCommentLikes(mediaId), deps.ownUsername()]);
+  const list = comments
+    .filter((c) => stored.get(c.id)?.decision !== 'own_comment' && !(own && c.username?.toLowerCase() === own))
+    .map((c) => ({
+      commentId: c.id,
+      username: c.username ?? null,
+      text: c.text ?? '',
+      likes: typeof c.like_count === 'number' ? c.like_count : null,
+      label: stored.get(c.id)?.answer_label ?? null,
+    }))
+    .sort((a, b) => (b.likes ?? -1) - (a.likes ?? -1));
+  return { mediaId, question: media.question, permalink: media.permalink, comments: list, readAt: now };
+}
+
+export function topLikedHtml(r: TopLikedResult, token: string): string {
+  const t = encodeURIComponent(token);
+  const list = r.comments.length
+    ? `<ol>${r.comments
+        .map(
+          (c) =>
+            `<li><span class="label">${c.likes === null ? '¿?' : c.likes} me gusta</span> · @${esc(c.username ?? '?')}: ${esc(c.text)}${c.label ? ` <span class="muted">(${esc(c.label)})</span>` : ''}</li>`,
+        )
+        .join('\n')}</ol>`
+    : '<p class="muted">Instagram no ha devuelto comentarios de este vídeo.</p>';
+  return page(
+    'Más me gusta',
+    `${nav(token)}
+<h1>Más me gusta · ${esc(r.question ?? 'vídeo')}</h1>
+<p class="muted">Comentarios de tus seguidores (sin los tuyos) ordenados por me gusta, leídos de Instagram a las ${time(r.readAt)}. Solo comentarios principales. <a href="/report/${esc(r.mediaId)}/megusta?token=${t}">Actualizar</a> · <a href="/report/${esc(r.mediaId)}?token=${t}">volver al informe</a>${r.permalink ? ` · <a href="${esc(r.permalink)}" rel="noreferrer">ver vídeo</a>` : ''}</p>
+${list}`,
+  );
+}

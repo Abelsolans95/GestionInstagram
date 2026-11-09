@@ -306,7 +306,9 @@ app de Meta. Repite esto por cada cuenta nueva (en el ejemplo, la del repartidor
   ```
 
 Cosas que valen para todas las cuentas a la vez: `REVIEW_MODE`, el delay y las listas de
-`config/`. El tope de `MAX_REPLIES_PER_HOUR` es **por cuenta**. En `/report` los vídeos salen
+`config/`. Si quieres revisar a mano solo las respuestas de la cuenta nueva los primeros días,
+añade en Railway `REVIEW_MODE_CUENTAS=USUARIO_NUEVO` (varias, separadas por comas) y quítala cuando
+te fíes. El tope de `MAX_REPLIES_PER_HOUR` es **por cuenta**. En `/report` los vídeos salen
 separados por cuenta y en `/participants` arriba eliges la cuenta.
 
 ---
@@ -318,6 +320,9 @@ separados por cuenta y en `/participants` arriba eliges la cuenta.
 - **Lo que ya existe en la historia**: `prompts/historia.md`. Cuando en un vídeo se descubra o se
   construya algo (la rueda, las casas…), muévelo a "Ya existe". Si no, Haiku puede decir que aún
   hay que inventarlo.
+- **Comentarios con más me gusta**: en el informe de cada vídeo, **más me gusta** lista los
+  comentarios de tus seguidores ordenados por me gusta (leídos de Instagram en ese momento), para
+  elegir cuáles salen en el vídeo.
 - **Votaciones con me gusta**: publica en el vídeo un comentario por candidato u opción y pide que
   voten dándole me gusta. En el informe del vídeo, el enlace **votos (me gusta)** los cuenta en ese
   momento y dice quién va ganando (pulsa *Actualizar* para volver a contar).
