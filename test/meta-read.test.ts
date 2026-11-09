@@ -152,3 +152,32 @@ describe('los tokens nunca acaban en los mensajes de error', () => {
     expect(redactSecrets('x EAABsbCS1iHgBAZBexampletoken1234567 y IGAAexampletoken1234567890abc z')).toBe('x [REDACTED] y [REDACTED] z');
   });
 });
+
+describe('radar: datos públicos de otra cuenta (Business Discovery)', () => {
+  it('pide a tu cuenta los datos de la otra por su @, con sus últimos reels; solo GET', async () => {
+    const urls: string[] = [];
+    const fetchImpl: FetchLike = async (url, init) => {
+      urls.push(url);
+      expect(init.method ?? 'GET').toBe('GET');
+      return new Response(
+        JSON.stringify({ id: IG_USER_ID, business_discovery: { username: 'otra_cuenta', followers_count: 1200, media: { data: [{ id: 'x1', media_type: 'VIDEO', like_count: 300, comments_count: 40 }] } } }),
+        { status: 200, headers: { 'content-type': 'application/json' } },
+      );
+    };
+    const read = createReadClient({ graph: graphFor(fetchImpl), igUserId: IG_USER_ID });
+    const bd = await read.businessDiscovery('@otra_cuenta', 10);
+    expect(bd).toMatchObject({ username: 'otra_cuenta', followers_count: 1200 });
+    expect(bd.media?.data[0]).toMatchObject({ like_count: 300, comments_count: 40 });
+    const url = decodeURIComponent(urls[0]!);
+    expect(url).toContain(`/${IG_USER_ID}?`);
+    expect(url).toContain('business_discovery.username(otra_cuenta){username,name,followers_count,media_count,media.limit(10){');
+    expect(url).toContain('like_count,comments_count');
+  });
+
+  it('un @ con caracteres raros no llega a Meta', async () => {
+    let calls = 0;
+    const read = createReadClient({ graph: graphFor(async () => (calls++, new Response('{}'))), igUserId: IG_USER_ID });
+    await expect(read.businessDiscovery('a){x}')).rejects.toThrow(/no es un usuario de Instagram válido/);
+    expect(calls).toBe(0);
+  });
+});
