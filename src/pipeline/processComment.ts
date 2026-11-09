@@ -126,8 +126,8 @@ export function createCommentProcessor(deps: ProcessorDeps): CommentProcessor {
       parent,
     };
     if (!hasPrompt(deps.prompts, 'extract')) {
-      // Cuenta sin prompt de análisis: solo se responde.
-      updateComment(deps.db, row.comment_id, { extract_status: 'skipped' });
+      // Cuenta sin prompt de análisis: solo se responde. extract_status queda vacío (pendiente) para
+      // poder analizarlo más adelante con `pnpm reextract --cuenta`.
     } else {
       try {
         const r = await extractAndStore(deps, input, media);

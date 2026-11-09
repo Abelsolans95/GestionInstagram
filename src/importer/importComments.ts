@@ -69,7 +69,9 @@ export async function importComments(deps: AnalysisDeps, opts: ImportOptions): P
 
   const own = await getOwnIdentity(deps, { persist });
   const canAnalyze = hasPrompt(deps.prompts, 'extract');
-  if (!canAnalyze) print('Esta cuenta no tiene prompts/cuentas/<cuenta>/extract.md: se registran los comentarios (para no responderlos) sin analizarlos.');
+  if (!canAnalyze) {
+    print('Esta cuenta no tiene prompts/cuentas/<cuenta>/extract.md: se registran los comentarios (para no responderlos) sin analizarlos. Cuando lo tenga, analízalos con `pnpm reextract --cuenta <cuenta>`.');
+  }
 
   async function* mediaSource(): AsyncGenerator<IgMedia> {
     if (opts.mediaIds?.length) {
@@ -161,7 +163,8 @@ export async function importComments(deps: AnalysisDeps, opts: ImportOptions): P
 
     // Cuenta sin prompt de análisis: queda registrado como importado (no se responderá), sin análisis.
     if (!canAnalyze) {
-      if (persist) updateComment(db, c.id, { decision: 'imported', reason: 'importación (sin análisis en esta cuenta)', extract_status: 'skipped' }, now());
+      // Sin extract_status: queda pendiente de análisis (`pnpm reextract --cuenta` cuando haya prompt).
+      if (persist) updateComment(db, c.id, { decision: 'imported', reason: 'importación (sin análisis en esta cuenta)' }, now());
       summary.imported++;
       log('imported', { reason: 'sin prompt de análisis' });
       return;

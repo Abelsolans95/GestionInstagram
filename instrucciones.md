@@ -293,9 +293,16 @@ app de Meta. Repite esto por cada cuenta nueva (en el ejemplo, la del repartidor
   Debe responder `{"success":true}`. El webhook es el mismo: no hay que tocarlo en Meta.
 - [ ] **12.8 Prueba.** Comenta en un vídeo de la cuenta nueva desde otra cuenta. En
   `https://TU_DOMINIO/review?token=TU_REPORT_TOKEN` aparece con el @ de la cuenta en negrita.
-- [ ] **12.9 (Opcional) Sus comentarios antiguos**, sin responderlos (paso 9, con `--cuenta`):
+- [ ] **12.9 (Opcional) Sus comentarios antiguos**, sin responderlos (paso 9, con `--cuenta`).
+  Desde `railway ssh`:
   ```
-  pnpm import:comments --cuenta USUARIO_NUEVO
+  REVIEW_MODE=true pnpm import:comments --cuenta USUARIO_NUEVO
+  ```
+  El `REVIEW_MODE=true` del principio vale solo para ese comando (la importación se niega a
+  arrancar sin él, por seguridad); el servicio sigue como lo tengas. Si la cuenta aún no tiene
+  `extract.md`, los comentarios se guardan sin analizar; cuando lo tenga, analízalos con:
+  ```
+  pnpm reextract --cuenta USUARIO_NUEVO
   ```
 
 Cosas que valen para todas las cuentas a la vez: `REVIEW_MODE`, el delay y las listas de

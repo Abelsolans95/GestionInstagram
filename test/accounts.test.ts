@@ -13,6 +13,7 @@ import { createAccountPromptStore, staticPromptStore } from '../src/llm/prompts.
 import type { FetchLike } from '../src/meta/http.js';
 import { createServiceProcessor } from '../src/pipeline/accountProcessor.js';
 import { ensureMedia } from '../src/pipeline/context.js';
+import { reextractMedia } from '../src/pipeline/reextract.js';
 import { storeAnalysis } from '../src/pipeline/extraction.js';
 import { complaintRepliesForUser } from '../src/pipeline/filters.js';
 import { createCommentQueue } from '../src/queue/commentQueue.js';
@@ -210,12 +211,21 @@ describe('varias cuentas en el mismo servicio', () => {
     ]);
     expect(getComment(db, 'deA')).toMatchObject({ account_id: A, status: 'pending_review', extract_status: 'done', answer_label: 'pescador' });
     // La cuenta B no tiene prompt de análisis: solo se responde.
-    expect(getComment(db, 'deB')).toMatchObject({ account_id: B, status: 'pending_review', extract_status: 'skipped' });
+    expect(getComment(db, 'deB')).toMatchObject({ account_id: B, status: 'pending_review', extract_status: null });
     const replies = calls.filter((c) => c.task === 'reply');
     expect(replies.find((c) => c.user.includes('@pepe'))!.system).toBe('REPLY-A\n\nHISTORIA-A');
     expect(replies.find((c) => c.user.includes('@lola'))!.system).toBe('REPLY-B\n\n');
     expect(calls.filter((c) => c.task !== 'reply').every((c) => c.system.includes('-A'))).toBe(true);
     expect(getMedia(db, 'mB')).toMatchObject({ account_id: B, is_own: 1 });
+  });
+
+  it('cuando la cuenta tenga prompt de análisis, reextract analiza lo que quedó pendiente', async () => {
+    const { db, s, send } = setup();
+    await send([{ commentId: 'deB', mediaId: 'mB', accountId: B, text: 'que hambre', fromUsername: 'lola', fromId: 'ig-lola' }]);
+    expect(getComment(db, 'deB')!.extract_status).toBeNull();
+    const withPrompt = { ...s.accounts.get(B)!.analysis, prompts: staticPromptStore({ extract: 'EXTRACT-B', question: 'QUESTION-B' }) };
+    expect(await reextractMedia(withPrompt, 'mB')).toEqual({ total: 1, done: 1, failed: 0 });
+    expect(getComment(db, 'deB')).toMatchObject({ extract_status: 'done', answer_label: 'pescador' });
   });
 
   it('si el webhook no trae la cuenta, se averigua por el dueño del vídeo (sin estropear la otra cuenta)', async () => {

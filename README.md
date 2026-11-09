@@ -296,6 +296,8 @@ por comas (`IG_USER_ID=17841400000000001,17841400000000002`). La primera es la *
   y en `/review` cada tarjeta dice de qué cuenta es.
 - **CLI**: `--cuenta <usuario|id>` en `import:comments`, `question`, `reextract` y `token`
   (por defecto, la principal; `question` y `reextract` con un vídeo ya guardado usan su cuenta).
+  `pnpm reextract --cuenta <usuario>` analiza todos los vídeos de la cuenta, incluidos los
+  comentarios que quedaron sin analizar porque la cuenta aún no tenía `extract.md`.
 - Lo guardado antes de tener varias cuentas pasa a la principal la primera vez que arranca.
 
 ## Plan B: leer los comentarios sin webhook

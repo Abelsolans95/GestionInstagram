@@ -25,13 +25,17 @@ export async function reextractMedia(
   }
   let media = await ensureMedia(deps, mediaId);
   media = await ensureQuestion(deps, media);
-  const statuses = opts.onlyFailed ? ['failed'] : ['done', 'failed'];
+  // done/failed: ya analizados (o fallidos). Sin extract_status: pendientes de análisis (p. ej. de
+  // una cuenta que aún no tenía prompt de análisis), salvo los que todavía están en la cola.
   const rows = deps.db
     .prepare(
-      `SELECT * FROM comments WHERE media_id = ? AND extract_status IN (${statuses.map(() => '?').join(',')})
+      `SELECT * FROM comments WHERE media_id = @mediaId
+         AND (extract_status = 'failed'
+              OR (@all = 1 AND extract_status = 'done')
+              OR (@all = 1 AND extract_status IS NULL AND status NOT IN ('queued', 'processing')))
        ORDER BY commented_at`,
     )
-    .all(mediaId, ...statuses) as CommentRow[];
+    .all({ mediaId, all: opts.onlyFailed ? 0 : 1 }) as CommentRow[];
   const summary: ReextractSummary = { total: rows.length, done: 0, failed: 0 };
   for (const row of rows) {
     const parent = row.parent_id ? getComment(deps.db, row.parent_id) : undefined;
