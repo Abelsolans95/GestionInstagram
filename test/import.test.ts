@@ -153,4 +153,28 @@ describe('importación de comentarios existentes', () => {
     expect(s.alreadyKnown).toBe(1);
     expect(getComment(db, 'r2')).toMatchObject({ status: 'failed', parent_id: 'c1', thread_id: 'c1', parent_checked: 1, username: 'ana', text: 'yo también herrera' });
   });
+
+  it('si Meta corta la paginación antes de tiempo, una segunda pasada trae el resto', async () => {
+    const many = Array.from({ length: 7 }, (_, i) => ({
+      comment: c(`t${i}`, `user${i}`, `comentario ${i}`),
+      ...(i === 5 ? { replies: [c(`t${i}r`, 'ana', 'respuesta')] } : {}),
+    }));
+    const meta = createFakeMeta({
+      igUserId: IG_USER_ID,
+      username: OWN_USERNAME,
+      media: [{ ...MEDIA[0]!, comments_count: 8 }],
+      threads: { m1: many },
+      pageSize: 2,
+      nestedCap: 4,
+    });
+    const { llm } = fakeLlm((req) => (req.task === 'question' ? { question: null } : { answers_question: false, answer: null, answer_label: null, character_name: null }));
+    const db = openDb(':memory:');
+    const services = createCoreServices(testConfig(), silentLogger, { db, fetch: meta.fetch, llm, prompts: testPrompts, lists: testLists, sleep: async () => {} });
+    const lines: string[] = [];
+    const s = await importComments(services.analysis, { dryRun: false, print: (l) => lines.push(l) });
+    expect(s).toMatchObject({ comments: 8, expected: 8, imported: 8 });
+    expect(getComment(db, 't5r')).toMatchObject({ parent_id: 't5' });
+    expect(lines.join('\n')).toContain('Instagram dice 8 comentarios y han llegado 4');
+    expect(meta.posts()).toEqual([]);
+  });
 });

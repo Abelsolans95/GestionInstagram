@@ -21,6 +21,8 @@ export interface FakeMetaOptions {
   /** Respuestas incluidas en la expansión replies{...} antes de paginar. */
   expandedReplies?: number;
   rejectFields?: string[];
+  /** Simula que Meta corta la paginación de /comments con replies{...} tras N comentarios. */
+  nestedCap?: number;
   failTimes?: Record<string, number>;
 }
 
@@ -102,7 +104,8 @@ export function createFakeMeta(opts: FakeMetaOptions) {
       return json(page(opts.media.map((m) => pick(m, params.fields)), params));
     }
     if (parts.length === 2 && parts[1] === 'comments') {
-      const threads = opts.threads[parts[0]!] ?? [];
+      const all = opts.threads[parts[0]!] ?? [];
+      const threads = opts.nestedCap !== undefined && params.fields?.includes('replies{') ? all.slice(0, opts.nestedCap) : all;
       const expanded = opts.expandedReplies ?? 50;
       return json(
         page(

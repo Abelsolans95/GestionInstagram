@@ -37,6 +37,8 @@ export interface ImportSummary {
   alreadyKnown: number;
   /** Guardados sin analizar porque la cuenta no tiene prompt de análisis (incluidos en imported). */
   pending: number;
+  /** Comentarios que Instagram dice que hay en esos vídeos (comments_count). */
+  expected: number;
   own: number;
   spam: number;
   failed: number;
@@ -65,6 +67,7 @@ export async function importComments(deps: AnalysisDeps, opts: ImportOptions): P
     nonAnswers: 0,
     alreadyKnown: 0,
     pending: 0,
+    expected: 0,
     own: 0,
     spam: 0,
     failed: 0,
@@ -94,10 +97,41 @@ export async function importComments(deps: AnalysisDeps, opts: ImportOptions): P
       `\n▶ ${media.permalink ?? media.mediaId}\n  pregunta: ${media.question ?? '(sin pregunta: fíjala con `pnpm question set` y luego `pnpm reextract`)'}`,
     );
 
+    const seen = new Set<string>();
+    const one = async (c: IgComment, parent: IgComment | null) => {
+      if (seen.has(c.id)) return;
+      seen.add(c.id);
+      await importOne(c, parent, media);
+    };
     for await (const thread of deps.read.listThreads(media.mediaId)) {
-      await importOne(thread.comment, null, media);
-      for (const reply of thread.replies) await importOne(reply, thread.comment, media);
+      await one(thread.comment, null);
+      for (const reply of thread.replies) await one(reply, thread.comment);
     }
+
+    // A veces la paginación de Meta se corta antes de tiempo (en múltiplos de 50) al pedir las
+    // respuestas dentro de cada comentario. Si Instagram dice que hay más, segunda pasada: solo
+    // los comentarios principales y, de los nuevos, sus respuestas por separado.
+    const expected = await deps.read.getCommentsCount(media.mediaId);
+    if (expected !== null && seen.size < expected) {
+      const before = seen.size;
+      print(`  Instagram dice ${expected} comentarios y han llegado ${before}: segunda pasada…`);
+      let repliesOk = true;
+      for await (const c of deps.read.listTopLevelComments(media.mediaId)) {
+        if (seen.has(c.id)) continue;
+        await one(c, null);
+        if (!repliesOk) continue;
+        try {
+          for await (const r of deps.read.listReplies(c.id)) await one(r, c);
+        } catch (err) {
+          // Una petición por comentario: si Meta corta (p. ej. límite de llamadas), seguimos solo
+          // con los principales.
+          repliesOk = false;
+          print(`  no se pueden leer más respuestas (${errorMessage(err)}); sigo solo con los comentarios principales`);
+        }
+      }
+      print(`  segunda pasada: ${seen.size - before} más (total ${seen.size} de ${expected})`);
+    }
+    summary.expected += expected ?? seen.size;
   }
   return summary;
 

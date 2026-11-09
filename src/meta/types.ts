@@ -15,6 +15,8 @@ export interface IgMedia {
   media_type?: string;
   owner?: { id: string };
   username?: string;
+  /** Comentarios del vídeo según Instagram (incluye las respuestas en hilos). */
+  comments_count?: number;
 }
 
 export interface IgComment {

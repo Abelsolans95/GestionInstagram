@@ -13,6 +13,13 @@ export interface ReadClient {
   listMedia(): AsyncGenerator<IgMedia>;
   /** Comentarios principales del vídeo, cada uno con todas sus respuestas (paginando). */
   listThreads(mediaId: string): AsyncGenerator<IgThread>;
+  /**
+   * Solo los comentarios principales, sin pedir las respuestas dentro (segunda pasada de la
+   * importación cuando la primera devuelve menos comentarios de los que dice Instagram).
+   */
+  listTopLevelComments(mediaId: string): AsyncGenerator<IgComment>;
+  /** Comentarios del vídeo según Instagram (comments_count, incluye respuestas). null si no se puede leer. */
+  getCommentsCount(mediaId: string): Promise<number | null>;
   listReplies(commentId: string): AsyncGenerator<IgComment>;
   /** Comentarios principales del vídeo con sus me gusta (like_count), para contar votos. */
   listCommentLikes(mediaId: string): Promise<IgComment[]>;
@@ -123,6 +130,21 @@ export function createReadClient(opts: ReadClientOptions): ReadClient {
       let after = first.paging?.next ? first.paging.cursors?.after : undefined;
       if (!after) return;
       yield* paginate<IgMedia>(`${igUserId}/media`, { fields: mediaFields(), limit: 50, after });
+    },
+
+    // Petición aparte para no arriesgar el resto de campos del vídeo si Meta no lo diera.
+    async getCommentsCount(mediaId) {
+      try {
+        const m = await graphGet<IgMedia>(graph, mediaId, { fields: 'id,comments_count' });
+        return typeof m.comments_count === 'number' ? m.comments_count : null;
+      } catch (err) {
+        warn('no se pudo leer comments_count', { media_id: mediaId, error: (err as Error).message });
+        return null;
+      }
+    },
+
+    async *listTopLevelComments(mediaId) {
+      yield* paginate<IgComment>(`${mediaId}/comments`, { fields: commentFields(), limit: PAGE_LIMIT });
     },
 
     async *listThreads(mediaId) {

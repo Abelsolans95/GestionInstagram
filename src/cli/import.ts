@@ -36,7 +36,7 @@ runCli(async () => {
     print: (line) => console.log(line),
   });
   console.log('\nResumen:');
-  console.log(`  vídeos: ${summary.media} · comentarios vistos: ${summary.comments}`);
+  console.log(`  vídeos: ${summary.media} · comentarios vistos: ${summary.comments} (según Instagram: ${summary.expected})`);
   console.log(`  analizados: ${summary.imported - summary.pending} (responden: ${summary.answers}, no responden: ${summary.nonAnswers})`);
   if (summary.pending) {
     console.log(`  guardados sin analizar: ${summary.pending} (esta cuenta aún no tiene prompt de análisis; luego: pnpm reextract --cuenta ...)`);
