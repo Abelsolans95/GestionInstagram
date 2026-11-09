@@ -323,6 +323,10 @@ separados por cuenta y en `/participants` arriba eliges la cuenta.
 - **Comentarios con más me gusta**: en el informe de cada vídeo, **más me gusta** lista los
   comentarios de tus seguidores ordenados por me gusta (leídos de Instagram en ese momento), para
   elegir cuáles salen en el vídeo.
+- **Radar de tendencias** (menú *Radar*): ve qué reels funcionan en cuentas parecidas a la tuya.
+  Prueba una cuenta en el buscador; las que te sirvan, añádelas a `config/radar.txt` en GitHub
+  (una por línea). Solo valen cuentas profesionales (empresa o creador). Es para sacar ideas,
+  no para copiar: resubir vídeos de otros te puede costar denuncias y alcance.
 - **Votaciones con me gusta**: publica en el vídeo un comentario por candidato u opción y pide que
   voten dándole me gusta. En el informe del vídeo, el enlace **votos (me gusta)** los cuenta en ese
   momento y dice quién va ganando (pulsa *Actualizar* para volver a contar).

@@ -17,6 +17,17 @@ export interface IgMedia {
   username?: string;
   /** Comentarios del vídeo según Instagram (incluye las respuestas en hilos). */
   comments_count?: number;
+  /** Me gusta (solo se pide en el radar de otras cuentas). */
+  like_count?: number;
+}
+
+/** Datos públicos de otra cuenta profesional (Business Discovery), para el radar. */
+export interface IgBusinessDiscovery {
+  username: string;
+  name?: string;
+  followers_count?: number;
+  media_count?: number;
+  media?: IgPage<IgMedia>;
 }
 
 export interface IgComment {

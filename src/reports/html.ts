@@ -55,7 +55,7 @@ ${body}
 
 export function nav(token: string): string {
   const t = encodeURIComponent(token);
-  return `<nav class="muted"><a href="/report?token=${t}">Vídeos</a><a href="/participants?token=${t}">Participantes</a><a href="/review?token=${t}">Revisión</a></nav>`;
+  return `<nav class="muted"><a href="/report?token=${t}">Vídeos</a><a href="/participants?token=${t}">Participantes</a><a href="/review?token=${t}">Revisión</a><a href="/radar?token=${t}">Radar</a></nav>`;
 }
 
 export function mediaIndexHtml(items: MediaSummary[], token: string, accounts: AccountLabel[] = []): string {

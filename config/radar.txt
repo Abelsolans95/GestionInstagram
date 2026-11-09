@@ -1,0 +1,4 @@
+# Radar de tendencias: cuentas de Instagram parecidas a la tuya (una por línea, con o sin @).
+# Solo funcionan cuentas profesionales (empresa o creador). Las líneas con # se ignoran.
+# Ejemplo:
+# @otra_cuenta_de_historias

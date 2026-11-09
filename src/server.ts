@@ -90,6 +90,8 @@ async function main(): Promise<void> {
         return { read: a.read, ownUsername: async () => (await getOwnIdentity(a.analysis)).username };
       },
       accounts: () => (multi ? accounts.all.map((a) => ({ id: a.id, label: accounts.label(a.id) })) : []),
+      // Radar de tendencias: lee otras cuentas con el token de la cuenta principal.
+      radar: { read: accounts.primary.read },
     },
     review: {
       db,

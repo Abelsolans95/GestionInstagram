@@ -4,7 +4,7 @@
  * para eso existe writeClient.ts, que solo usa el publicador del worker de respuestas.
  */
 import { graphGet, isMissingObjectError, MetaApiError, type GraphContext } from './http.js';
-import type { IgComment, IgMe, IgMedia, IgPage, IgThread } from './types.js';
+import type { IgBusinessDiscovery, IgComment, IgMe, IgMedia, IgPage, IgThread } from './types.js';
 
 export interface ReadClient {
   getMe(): Promise<IgMe>;
@@ -23,6 +23,11 @@ export interface ReadClient {
   listReplies(commentId: string): AsyncGenerator<IgComment>;
   /** Comentarios principales del vídeo con sus me gusta (like_count), para contar votos. */
   listCommentLikes(mediaId: string): Promise<IgComment[]>;
+  /**
+   * Datos públicos de OTRA cuenta profesional (empresa o creador) por su @: seguidores y sus
+   * últimas publicaciones con me gusta y comentarios. Para el radar de tendencias.
+   */
+  businessDiscovery(username: string, mediaLimit?: number): Promise<IgBusinessDiscovery>;
 }
 
 const PAGE_LIMIT = 50; // máximo documentado para /comments
@@ -187,6 +192,17 @@ export function createReadClient(opts: ReadClientOptions): ReadClient {
     },
 
     listReplies,
+
+    async businessDiscovery(username, mediaLimit = 25) {
+      const u = username.replace(/^@/, '').trim();
+      if (!/^[\w.]{1,30}$/.test(u)) throw new Error(`@${u} no es un usuario de Instagram válido`);
+      const media = `media.limit(${Math.min(Math.max(mediaLimit, 1), 50)}){id,caption,media_type,permalink,timestamp,like_count,comments_count}`;
+      const res = await graphGet<{ business_discovery?: IgBusinessDiscovery }>(graph, igUserId, {
+        fields: `business_discovery.username(${u}){username,name,followers_count,media_count,${media}}`,
+      });
+      if (!res.business_discovery) throw new Error(`Instagram no devuelve datos de @${u}`);
+      return res.business_discovery;
+    },
 
     async listCommentLikes(mediaId) {
       // Campos fijos (sin los opcionales degradables): si Meta no diera like_count, mejor un error

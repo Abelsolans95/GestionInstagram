@@ -272,6 +272,7 @@ envía `Authorization: Bearer TU_REPORT_TOKEN`.
 | `GET /report/:mediaId` | La pregunta y las respuestas agrupadas por etiqueta, ordenadas por número de personas (`herrero (3): @a, @b, @c`); al final, los comentarios que no responden. `?format=csv`, `?format=md`, `?format=conversaciones` (cada hilo con tus respuestas marcadas, en Markdown) |
 | `GET /report/:mediaId/megusta` | Comentarios de tus seguidores ordenados por me gusta (leídos de Meta en ese momento), con su respuesta a la pregunta si está analizada: para elegir cuáles salen en el vídeo |
 | `GET /report/:mediaId/votos` | Votaciones con me gusta: lee de Meta en ese momento los me gusta (`like_count`) de tus comentarios principales del vídeo (uno por candidato u opción), los ordena y dice quién va ganando |
+| `GET /radar` | Radar de tendencias: últimos reels de las cuentas de `config/radar.txt` (y de una que pruebes con `?cuenta=`), leídos con Business Discovery y el token de la cuenta principal, ordenados por (me gusta + comentarios) / seguidores. Caché de 15 min (`?actualizar=1` para forzar). Solo enlaza a los originales |
 | `GET /participants` | Ficha por seguidor: @usuario, nombre de personaje y su respuesta en cada vídeo. `?format=csv`; con varias cuentas, `?cuenta=<usuario>` |
 | `GET /review` | Respuestas pendientes de aprobar |
 | `GET /status` | Estado en JSON: comentarios por estado, respuestas en la última hora, token |

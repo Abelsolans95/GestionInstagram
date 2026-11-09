@@ -6,6 +6,7 @@ import { mediaReportCsv, participantsCsv } from './csv.js';
 import { mediaIndexHtml, mediaReportHtml, participantsHtml, type AccountLabel } from './html.js';
 import { mediaReportMarkdown } from './markdown.js';
 import { buildMediaReport, buildParticipantsReport, listReportMedia } from './queries.js';
+import { createRadar, radarHtml, type RadarDeps } from './radar.js';
 import { buildTopLiked, buildVotes, topLikedHtml, votesErrorHtml, votesHtml, type VotesDeps } from './votes.js';
 
 export interface ReportOptions {
@@ -16,12 +17,22 @@ export interface ReportOptions {
    * /report/:mediaId/votos da 404.
    */
   votes?: VotesDeps | ((mediaId: string) => VotesDeps);
+  /** Radar de tendencias (lee otras cuentas con Business Discovery). Sin esto, /radar da 404. */
+  radar?: RadarDeps;
   /** Tus cuentas si hay más de una (la principal primero); vacío o sin esto, una sola. */
   accounts?: () => AccountLabel[];
 }
 
 export const reportRoutes: FastifyPluginAsync<ReportOptions> = async (app, opts) => {
   app.addHook('onRequest', requireToken(opts.reportToken));
+  const radar = opts.radar ? createRadar(opts.radar) : null;
+
+  app.get<{ Querystring: { cuenta?: string; actualizar?: string } }>('/radar', async (req, reply) => {
+    if (!radar) return reply.code(404).type('text/plain').send('Radar no disponible');
+    const cuenta = req.query.cuenta?.trim() || undefined;
+    const result = await radar.build({ ...(cuenta ? { extra: cuenta } : {}), force: req.query.actualizar === '1' });
+    return reply.type('text/html; charset=utf-8').send(radarHtml(result, requestToken(req)!, cuenta));
+  });
 
   app.get('/report', async (req, reply) => {
     return reply
