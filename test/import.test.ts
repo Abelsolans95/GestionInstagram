@@ -141,4 +141,16 @@ describe('importación de comentarios existentes', () => {
     expect(getComment(db, 'c1')).toMatchObject({ status: 'imported', extract_status: 'failed' });
     expect(getComment(db, 'c4')).toMatchObject({ extract_status: 'done' });
   });
+
+  it('un comentario que ya llegó por webhook no se toca, pero se completa su hilo si no se sabía', async () => {
+    const { db, services } = setup();
+    createCommentQueue(db).enqueueWebhookEvents(
+      [{ commentId: 'r2', mediaId: 'm1', text: '', fromId: null, fromUsername: null, parentId: null, mediaProductType: 'REELS', accountId: IG_USER_ID, sentAt: null }],
+      new Date(1),
+    );
+    db.prepare("UPDATE comments SET status = 'failed' WHERE comment_id = 'r2'").run();
+    const s = await importComments(services.analysis, { dryRun: false });
+    expect(s.alreadyKnown).toBe(1);
+    expect(getComment(db, 'r2')).toMatchObject({ status: 'failed', parent_id: 'c1', thread_id: 'c1', parent_checked: 1, username: 'ana', text: 'yo también herrera' });
+  });
 });

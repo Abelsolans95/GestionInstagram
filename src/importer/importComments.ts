@@ -35,6 +35,8 @@ export interface ImportSummary {
   answers: number;
   nonAnswers: number;
   alreadyKnown: number;
+  /** Guardados sin analizar porque la cuenta no tiene prompt de análisis (incluidos en imported). */
+  pending: number;
   own: number;
   spam: number;
   failed: number;
@@ -62,6 +64,7 @@ export async function importComments(deps: AnalysisDeps, opts: ImportOptions): P
     answers: 0,
     nonAnswers: 0,
     alreadyKnown: 0,
+    pending: 0,
     own: 0,
     spam: 0,
     failed: 0,
@@ -117,7 +120,27 @@ export async function importComments(deps: AnalysisDeps, opts: ImportOptions): P
         ...extra,
       });
 
-    if (getComment(db, c.id)) {
+    const known = getComment(db, c.id);
+    if (known) {
+      // Ya estaba (p. ej. llegó por webhook). No se toca su estado; solo se completa el hilo, el
+      // autor y la fecha si el webhook no los traía, para que las conversaciones salgan bien.
+      if (persist && !known.parent_checked) {
+        const parentId = parent?.id ?? c.parent_id ?? null;
+        updateComment(
+          db,
+          c.id,
+          {
+            parent_id: parentId,
+            parent_checked: 1,
+            thread_id: parentId ?? c.id,
+            username: known.username ?? username,
+            ig_user_id: known.ig_user_id ?? igUserId,
+            text: known.text || text,
+            commented_at: Number.isNaN(ts) ? known.commented_at : commentedAt,
+          },
+          now(),
+        );
+      }
       summary.alreadyKnown++;
       return;
     }
@@ -166,6 +189,7 @@ export async function importComments(deps: AnalysisDeps, opts: ImportOptions): P
       // Sin extract_status: queda pendiente de análisis (`pnpm reextract --cuenta` cuando haya prompt).
       if (persist) updateComment(db, c.id, { decision: 'imported', reason: 'importación (sin análisis en esta cuenta)' }, now());
       summary.imported++;
+      summary.pending++;
       log('imported', { reason: 'sin prompt de análisis' });
       return;
     }
