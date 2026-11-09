@@ -17,7 +17,7 @@ import { reextractMedia } from '../src/pipeline/reextract.js';
 import { storeAnalysis } from '../src/pipeline/extraction.js';
 import { complaintRepliesForUser } from '../src/pipeline/filters.js';
 import { createCommentQueue } from '../src/queue/commentQueue.js';
-import { buildParticipantsReport } from '../src/reports/queries.js';
+import { buildMediaReport, buildParticipantsReport } from '../src/reports/queries.js';
 import { createCoreServices } from '../src/services.js';
 import type { CommentEvent } from '../src/webhook/parse.js';
 import { createPublisher } from '../src/worker/publisher.js';
@@ -223,9 +223,11 @@ describe('varias cuentas en el mismo servicio', () => {
     const { db, s, send } = setup();
     await send([{ commentId: 'deB', mediaId: 'mB', accountId: B, text: 'que hambre', fromUsername: 'lola', fromId: 'ig-lola' }]);
     expect(getComment(db, 'deB')!.extract_status).toBeNull();
+    expect(buildMediaReport(db, 'mB')!.pendingAnalysis).toBe(1);
     const withPrompt = { ...s.accounts.get(B)!.analysis, prompts: staticPromptStore({ extract: 'EXTRACT-B', question: 'QUESTION-B' }) };
     expect(await reextractMedia(withPrompt, 'mB')).toEqual({ total: 1, done: 1, failed: 0 });
     expect(getComment(db, 'deB')).toMatchObject({ extract_status: 'done', answer_label: 'pescador' });
+    expect(buildMediaReport(db, 'mB')!.pendingAnalysis).toBe(0);
   });
 
   it('si el webhook no trae la cuenta, se averigua por el dueño del vídeo (sin estropear la otra cuenta)', async () => {

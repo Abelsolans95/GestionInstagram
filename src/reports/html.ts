@@ -106,8 +106,9 @@ export function mediaReportHtml(r: MediaReport, token: string): string {
   return page(
     r.question ?? 'Informe',
     `${nav(token)}
-<h1>${esc(r.question ?? '(sin pregunta: fíjala con pnpm question set)')}</h1>
+<h1>${esc(r.question ?? (r.pendingAnalysis && !r.totalPeople && !r.nonAnswers.length ? 'Vídeo sin analizar' : '(sin pregunta: fíjala con pnpm question set)'))}</h1>
 <p class="muted">${fmt(r.postedAt)} · ${plural(r.totalPeople, 'persona ha respondido', 'personas han respondido')}${r.permalink ? ` · <a href="${esc(r.permalink)}" rel="noreferrer">ver vídeo</a>` : ''} · <a href="/report/${esc(r.mediaId)}?format=csv&token=${t}">CSV</a> · <a href="/report/${esc(r.mediaId)}?format=md&token=${t}">MD</a> · <a href="/report/${esc(r.mediaId)}?format=conversaciones&token=${t}">conversaciones</a> · <a href="/report/${esc(r.mediaId)}/votos?token=${t}">votos (me gusta)</a></p>
+${r.pendingAnalysis ? `<div class="card">Hay ${plural(r.pendingAnalysis, 'comentario guardado', 'comentarios guardados')} sin analizar (esta cuenta aún no tiene prompt de análisis). Para verlos todos, con sus hilos: <a href="/report/${esc(r.mediaId)}?format=conversaciones&token=${t}">descargar conversaciones</a>.</div>` : ''}
 ${groups}
 ${anyMultiple ? '<p class="muted">* respondió varias veces; cuenta la última.</p>' : ''}
 <h2>No responden a la pregunta (${r.nonAnswers.length})</h2>

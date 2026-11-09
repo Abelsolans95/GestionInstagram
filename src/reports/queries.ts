@@ -33,6 +33,8 @@ export interface MediaReport {
   groups: ReportGroup[];
   nonAnswers: NonAnswer[];
   totalPeople: number;
+  /** Comentarios guardados sin analizar (p. ej. de una cuenta sin prompt de análisis). */
+  pendingAnalysis: number;
 }
 
 export const NO_LABEL = '(sin etiqueta)';
@@ -100,6 +102,15 @@ export function buildMediaReport(db: DB, mediaId: string): MediaReport | null {
     groups,
     nonAnswers,
     totalPeople: rows.length,
+    pendingAnalysis: (
+      db
+        .prepare(
+          `SELECT COUNT(*) AS n FROM comments
+           WHERE media_id = ? AND extract_status IS NULL AND status NOT IN ('queued', 'processing')
+             AND COALESCE(decision, '') NOT IN ('own_comment', 'spam', 'not_own_media')`,
+        )
+        .get(mediaId) as { n: number }
+    ).n,
   };
 }
 

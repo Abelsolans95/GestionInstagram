@@ -15,6 +15,9 @@ export function mediaReportMarkdown(r: MediaReport): string {
   const meta = [fmt(r.postedAt), `${r.totalPeople} ${r.totalPeople === 1 ? 'persona ha respondido' : 'personas han respondido'}`];
   if (r.permalink) meta.push(`vídeo: ${r.permalink}`);
   lines.push(meta.join(' · '), '');
+  if (r.pendingAnalysis) {
+    lines.push(`Hay ${r.pendingAnalysis} comentarios guardados sin analizar (esta cuenta aún no tiene prompt de análisis): descarga las conversaciones para verlos.`, '');
+  }
 
   lines.push('## Respuestas', '');
   if (r.groups.length === 0) lines.push('Nadie ha respondido todavía a la pregunta.');
