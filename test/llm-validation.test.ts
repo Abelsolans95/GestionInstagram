@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { fakeLlm, testPrompts } from './helpers/fakes.js';
 import { createPromptStore } from '../src/llm/prompts.js';
 import { buildReplyUserMessage, ensureMention, generateReply, validateReplyOutput } from '../src/llm/reply.js';
+import { wellFormed } from '../src/pipeline/text.js';
 
 const U = 'cesar_h_marquez';
 const out = (reply: string | null, reason = 'ok') => JSON.stringify({ reply, reason });
@@ -98,5 +99,25 @@ describe('lo que ya existe en la historia', () => {
     const historia = createPromptStore().get('historia');
     expect(historia).toContain('Ya existe');
     expect(historia).toMatch(/el fuego/);
+  });
+});
+
+describe('emojis partidos (la API de Anthropic rechaza el JSON)', () => {
+  const lone = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/;
+
+  it('al recortar tus últimas respuestas a 120 caracteres no parte ningún emoji', () => {
+    const long = '@ana ' + 'a'.repeat(119) + '🔥🔥';
+    const m = buildReplyUserMessage({ username: U, text: 'yo', caption: null, question: null, parent: null, recentReplies: [long] });
+    expect(m).not.toMatch(lone);
+    expect(m).toContain('- ' + 'a'.repeat(119) + '🔥\n');
+  });
+
+  it('wellFormed cambia los medios emojis sueltos y deja los enteros', () => {
+    const broken = 'hola 🔥'.slice(0, 6) + ' y ' + '🙌'.slice(1);
+    expect(broken).toMatch(lone);
+    const fixed = wellFormed(broken);
+    expect(fixed).not.toMatch(lone);
+    expect(fixed).toBe('hola \uFFFD y \uFFFD');
+    expect(wellFormed('todo bien 🔥🙌')).toBe('todo bien 🔥🙌');
   });
 });
