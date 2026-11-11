@@ -1,4 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
+import { wellFormed } from '../pipeline/text.js';
 
 /**
  * Petición a un LLM que debe devolver SOLO JSON conforme a `schema`.
@@ -69,8 +70,9 @@ export function createClaudeClient(opts: ClaudeOptions): LlmClient {
       const res = await client.messages.create({
         model,
         max_tokens: req.maxTokens ?? 4096,
-        system: req.system,
-        messages: [{ role: 'user', content: req.user }],
+        // Sin medios emojis sueltos: la API rechaza el JSON entero si viene alguno.
+        system: wellFormed(req.system),
+        messages: [{ role: 'user', content: wellFormed(req.user) }],
         output_config: {
           effort,
           format: { type: 'json_schema', schema: req.schema },

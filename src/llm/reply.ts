@@ -42,7 +42,8 @@ export interface ReplyInput {
 
 /** Quita la mención inicial ("@pepe genial!!" → "genial!!") y acorta. */
 function replyBody(text: string): string {
-  return text.replace(/^@[\w.]+\s*/, '').replace(/\s+/g, ' ').trim().slice(0, 120);
+  // Recorte por caracteres completos: con .slice() un emoji puede quedar partido por la mitad.
+  return [...text.replace(/^@[\w.]+\s*/, '').replace(/\s+/g, ' ').trim()].slice(0, 120).join('');
 }
 
 export function buildReplyUserMessage(i: ReplyInput): string {

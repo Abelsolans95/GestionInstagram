@@ -18,6 +18,14 @@ export function normalizeForMatch(s: string): string {
 }
 
 /** Longitud en caracteres visibles aproximados (puntos de código, no unidades UTF-16). */
+/**
+ * Sustituye los "medios emojis" (surrogates sueltos, p. ej. tras recortar un texto por la mitad de
+ * un emoji) por �. La API de Anthropic rechaza el JSON si llevan uno ("unexpected end of hex escape").
+ */
+export function wellFormed(s: string): string {
+  return s.replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g, '\uFFFD');
+}
+
 export function charLength(s: string): number {
   return [...s].length;
 }
