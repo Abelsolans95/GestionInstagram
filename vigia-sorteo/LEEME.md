@@ -1,12 +1,26 @@
 # Vigía del sorteo de la PS5
 
-Script aparte (no forma parte del servicio de Railway) que cada ~15 minutos mira los comentarios
-del reel del sorteo y te avisa por correo y/o al móvil:
+Script aparte (no forma parte del servicio de Railway) que vigila tus comentarios en el reel del
+sorteo y te avisa por correo y/o al móvil:
 
 - 🚨 **Urgente**: si a uno de tus comentarios le dan un "me gusta" → toca comentar otra vez.
-- ⚠️ Si ya no te queda ningún comentario sin "me gusta".
-- Cuántos comentarios de otros siguen sin ningún "me gusta" (solo si el número cambia, para no
-  llenarte el correo; con `AVISAR_SIEMPRE=1` te avisa en cada vuelta).
+- 👀 Cuando detecta un comentario tuyo nuevo y empieza a vigilarlo.
+- ❓ Si un comentario tuyo desaparece (ocultado o borrado).
+- Cada `BARRIDO_HORAS` (12 por defecto), cuántos comentarios de otros siguen sin "me gusta".
+
+Si no pasa nada de eso, no te escribe (con `AVISAR_SIEMPRE=1` te avisa en cada vuelta).
+
+### Cómo gasta poco con miles de comentarios
+
+| | Qué hace | Peticiones |
+|---|---|---|
+| Cada ~15 min | Mira los "me gusta" de cada comentario tuyo y lee los ~100 primeros comentarios para encontrar los tuyos nuevos | ~5 + 1 por comentario tuyo |
+| Al arrancar y cada `BARRIDO_HORAS` | Lee **todos** los comentarios para contar los que no tienen likes y encontrar los tuyos | Con 12.000, ~600 (tarda ~20 min) |
+
+Durante el barrido no hay vueltas rápidas, así que un aviso urgente puede llegar hasta ~20 min
+tarde. Si comentas y el vigía no te manda el "ya vigilo tu comentario nuevo" en 30 min, es que tu
+comentario no sale entre los primeros: lo encontrará en el siguiente barrido, o puedes forzarlo
+reiniciando con `python vigia_sorteo.py --barrido`.
 
 **Solo lee.** Nunca comenta ni da "me gusta": los comentarios los publicas tú desde la app.
 
@@ -36,7 +50,8 @@ del reel del sorteo y te avisa por correo y/o al móvil:
    en `MIS_CUENTAS`, y el Gmail).
 6. Prueba los avisos: `python vigia_sorteo.py --prueba-aviso`
 7. Prueba una vuelta: `python vigia_sorteo.py --una-vez`
-   (la primera vez puede pedirte el código de verificación en la terminal).
+   (la primera vez puede pedirte el código de verificación en la terminal, y hace el barrido
+   completo, así que con 12.000 comentarios tardará unos 20 min).
 8. Déjalo vigilando: `python vigia_sorteo.py` (Ctrl+C para parar). El ordenador tiene que estar
    encendido y sin suspenderse.
 
@@ -44,7 +59,8 @@ del reel del sorteo y te avisa por correo y/o al móvil:
 
 - `sesion.json`: la sesión de Instagram, para no iniciar sesión en cada vuelta (eso sí que levanta
   sospechas). No lo compartas: da acceso a la cuenta secundaria.
-- `estado.json`: los "me gusta" de la vuelta anterior, para saber qué ha cambiado.
+- `estado.json`: tus comentarios vigilados con sus "me gusta" y el último recuento. Si lo borras,
+  el vigía empieza de cero (y hace un barrido completo).
 
 ## Pruebas
 
